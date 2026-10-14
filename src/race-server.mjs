@@ -73,9 +73,13 @@ async function handleReady(res) {
 async function serveStatic(req, res) {
   let path = decodeURIComponent(new URL(req.url, "http://x").pathname);
   if (path === "/") path = "/index.html";
+  // saved run timelines live outside public/ — serve them so the UI's
+  // ?replay=/runs/<file>.json deterministic replay works against this server.
+  const base = path.startsWith("/runs/") ? RUNS : PUBLIC;
+  const rel = path.startsWith("/runs/") ? path.slice("/runs".length) : path;
   try {
-    const file = join(PUBLIC, path);
-    if (!file.startsWith(PUBLIC)) throw new Error("bad path");
+    const file = join(base, rel);
+    if (!file.startsWith(base)) throw new Error("bad path");
     const body = await readFile(file);
     res.writeHead(200, { "content-type": MIME[extname(file)] || "application/octet-stream" });
     res.end(body);

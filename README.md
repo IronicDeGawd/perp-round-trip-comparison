@@ -73,7 +73,9 @@ npm run race                 # serves the UI at http://localhost:8800
 Open `http://localhost:8800`, press **Run both**. Each run is saved to
 `runs/race-<timestamp>.json` (submit, accepted, open fill, close fill, settled,
 with tx hashes), which the UI can also replay deterministically:
-`http://localhost:8800/?replay=runs/race-<timestamp>.json`.
+`http://localhost:8800/?replay=/runs/race-<timestamp>.json`. A committed sample
+run ships at `runs/sample-race.json`, so
+`http://localhost:8800/?replay=/runs/sample-race.json` replays it with no setup.
 
 Query params: `?bg=transparent` (drop the page background, keep the card),
 `?max=<ms>` (time-ruler span, default 1600).

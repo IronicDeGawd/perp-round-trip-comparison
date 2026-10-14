@@ -14,9 +14,7 @@ dist/
 
 # saved run timelines keep the committed samples only
 runs/*.json
-!runs/sample-dreamdex.json
-!runs/sample-hyperliquid.json
-!runs/sample-race.json
+!runs/sample-*.json
 
 # os
 .DS_Store
