@@ -77,9 +77,14 @@
   .lane.hl { color: var(--hl); }
 
   .lane .id { grid-column: 1; grid-row: 1; display: flex; align-items: center; gap: 12px; }
-  .lane .logo { width: 34px; height: 34px; border-radius: 9px; display: grid; place-items: center;
-    background: color-mix(in srgb, currentColor 14%, #fff); color: currentColor; flex: none; }
-  .lane .logo svg { width: 20px; height: 20px; }
+  .lane .logo { width: 36px; height: 36px; border-radius: 9px; display: grid; place-items: center;
+    background: #F6F4EF; border: 1px solid var(--line); flex: none; }
+  .lane .logo-mark { width: 23px; height: 23px; display: block; }
+  /* DreamDEX mark is currentColor by design — render in its brand purple via mask (file unchanged) */
+  .logo-dd .logo-mark { background: var(--dd);
+    -webkit-mask: url(/brands/dreamdex/dreamdex-mark.svg) center/contain no-repeat;
+    mask: url(/brands/dreamdex/dreamdex-mark.svg) center/contain no-repeat; }
+  .lane .logo img.logo-mark { object-fit: contain; }
   .lane .name { font-size: 21px; font-weight: 700; color: var(--ink); line-height: 1.1; }
   .lane .name small { display: block; font-size: 15px; font-weight: 500; color: var(--sub); }
 
@@ -156,7 +161,7 @@
       <!-- DreamDEX -->
       <div class="lane dd" id="lane-dreamdex">
         <div class="id">
-          <span class="logo">◆</span>
+          <span class="logo logo-dd"><span class="logo-mark"></span></span>
           <span class="name">DreamDEX <small>Somnia · Hideki</small></span>
         </div>
         <div class="timer"><span class="ms" data-ms>0</span> ms</div>
@@ -173,7 +178,7 @@
       <!-- Hyperliquid -->
       <div class="lane hl" id="lane-hyperliquid">
         <div class="id">
-          <span class="logo">▲</span>
+          <span class="logo"><img class="logo-mark" src="/brands/hyperliquid/hyperliquid-mark.svg" alt="Hyperliquid" /></span>
           <span class="name">Hyperliquid <small>HyperCore</small></span>
         </div>
         <div class="timer"><span class="ms" data-ms>0</span> ms</div>
@@ -348,41 +353,54 @@ function cleanup(es) {
   runBtn.disabled = false;
 }
 
-// ---- optional deterministic replay from a saved JSON: ?replay=runs/race-x.json ----
+// ---- deterministic replay from a saved JSON (for frame-exact recording) ----
+// ?replay=runs/race-x.json loads it. window.setT(filmSeconds) renders the exact
+// state at a point in time — no wall-clock, so Playwright can step frames.
+// ?speed=N maps real-ms = filmSeconds * 1000 * N (N<1 slows playback down).
+const SPEED = Number(qs.get("speed") || 1);
+let FILM = null;
+
+function renderAt(race, ms) {
+  reset();
+  const tc = { dreamdex: 0, hyperliquid: 0 };
+  const all = [];
+  for (const v of ["dreamdex", "hyperliquid"]) (race[v]?.events || []).forEach((ev) => all.push(ev));
+  all.sort((a, b) => a.tMs - b.tMs);
+  for (const ev of all) if (ev.tMs <= ms) addTick(L[ev.lane], ev, tc[ev.lane]++);
+  for (const v of ["dreamdex", "hyperliquid"]) {
+    const sum = race[v]; const l = L[v];
+    if (sum?.ok && ms >= sum.finishMs) { settleLane(v, sum); }
+    else {
+      const e = Math.min(ms, RULER_MAX);
+      l.token.style.left = xpct(e) + "%"; l.fill.style.width = xpct(e) + "%";
+      l.ms.textContent = fmtMs(ms);
+    }
+  }
+  const bothDone = race.dreamdex?.ok && ms >= race.dreamdex.finishMs && race.hyperliquid?.ok && ms >= race.hyperliquid.finishMs;
+  if (bothDone && race.speedup) {
+    const b = document.getElementById("badge"); b.textContent = `~${race.speedup}× faster · 1 tx vs 2 orders`; b.classList.add("show");
+  }
+}
+
+// Film hook: t in film-seconds. Real ms = t * 1000 * SPEED.
+window.setT = (filmSeconds) => { if (FILM) renderAt(FILM, filmSeconds * 1000 * SPEED); };
+window.filmDuration = () => FILM ? (Math.max(FILM.dreamdex?.finishMs || 0, FILM.hyperliquid?.finishMs || 0) + 400) / 1000 / SPEED : 0;
+
 const replayUrl = qs.get("replay");
 if (replayUrl) {
   runBtn.style.display = "none";
-  fetch(replayUrl).then((r) => r.json()).then((race) => replay(race));
-}
-function replay(race) {
-  reset();
-  const all = [];
-  for (const v of ["dreamdex", "hyperliquid"]) {
-    (race[v]?.events || []).forEach((ev) => all.push(ev));
-  }
-  all.sort((a, b) => a.tMs - b.tMs);
-  const tc = { dreamdex: 0, hyperliquid: 0 };
-  const start = performance.now();
-  let idx = 0;
-  (function tick() {
-    const e = performance.now() - start;
-    for (const v of ["dreamdex", "hyperliquid"]) {
-      const l = L[v]; if (l.finishMs != null) continue;
-      const ee = Math.min(e, RULER_MAX);
-      l.token.style.left = xpct(ee) + "%"; l.fill.style.width = xpct(ee) + "%";
-      l.ms.textContent = fmtMs(e);
+  fetch(replayUrl).then((r) => r.json()).then((race) => {
+    FILM = race;
+    if (qs.has("t")) { window.setT(Number(qs.get("t"))); }     // static frame
+    else {                                                      // self-play (preview)
+      const start = performance.now();
+      (function tick() {
+        const filmS = (performance.now() - start) / 1000;
+        window.setT(filmS);
+        if (filmS < window.filmDuration()) requestAnimationFrame(tick);
+      })();
     }
-    while (idx < all.length && all[idx].tMs <= e) {
-      const ev = all[idx++]; addTick(L[ev.lane], ev, tc[ev.lane]++);
-    }
-    if (e < (Math.max(race.dreamdex?.finishMs || 0, race.hyperliquid?.finishMs || 0) + 60)) {
-      requestAnimationFrame(tick);
-    } else {
-      if (race.dreamdex?.ok) settleLane("dreamdex", race.dreamdex);
-      if (race.hyperliquid?.ok) settleLane("hyperliquid", race.hyperliquid);
-      if (race.speedup) { const b = document.getElementById("badge"); b.textContent = `~${race.speedup}× faster · 1 tx vs 2 orders`; b.classList.add("show"); }
-    }
-  })();
+  });
 }
 </script>
 </body>
