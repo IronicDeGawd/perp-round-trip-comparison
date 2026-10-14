@@ -70,7 +70,7 @@ npm run setup                # DreamDEX: approve margin, deposit, attach 7702 de
 npm run race                 # serves the UI at http://localhost:8800
 ```
 
-Open `http://localhost:8800`, press **Run both**. Each run is saved to
+Open `http://localhost:8800`, press **Start**. Each run is saved to
 `runs/race-<timestamp>.json` (submit, accepted, open fill, close fill, settled,
 with tx hashes), which the UI can also replay deterministically:
 `http://localhost:8800/?replay=/runs/race-<timestamp>.json`. A committed sample

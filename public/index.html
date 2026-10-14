@@ -3,452 +3,432 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>DreamDEX vs Hyperliquid — one-button round-trip race</title>
+<title>DreamDEX vs Hyperliquid — round-trip timing board</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Archivo:wght@400;500;600;700&family=Spline+Sans+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-  :root {
-    --dd: #6E6EED;      /* DreamDEX accent */
-    --hl: #50D2C1;      /* Hyperliquid accent */
-    --ink: #111;
-    --sub: #6B6B6B;
-    --card: #ffffff;
-    --line: #ECE9E2;
-    --page: #F3EFE7;    /* cream wall */
+  :root{
+    --track:#121520; --page:#0C0E15; --panel:#191D2B; --panel2:#1F2436;
+    --line:#2B3245; --chalk:#EEF1F6; --dim:#8992A6; --faint:#5A6378;
+    --dd:#8C8CFF; --hl:#35E0C5; --amber:#FFB64A; --go:#35D17E;
+    --card-r:26px;
   }
-  * { box-sizing: border-box; }
-  html, body { margin: 0; }
-  body {
-    background: var(--page);
-    font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
-    color: var(--ink);
-    display: flex; align-items: center; justify-content: center;
-    min-height: 100vh;
-    font-variant-numeric: tabular-nums;
-    font-feature-settings: "tnum" 1;
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    background:var(--page); color:var(--chalk);
+    font-family:Archivo,-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+    display:flex; align-items:center; justify-content:center; min-height:100vh;
+    -webkit-font-smoothing:antialiased;
   }
-  body.bg-transparent { background: transparent; }
+  body.bg-transparent{background:transparent}
+  .mono{font-family:"Spline Sans Mono",ui-monospace,SFMono-Regular,Menlo,monospace; font-variant-numeric:tabular-nums}
 
-  .card {
-    width: 900px; height: 900px;
-    background: var(--card);
-    border-radius: 24px;
-    box-shadow: 0 24px 60px rgba(17,17,17,.08), 0 2px 8px rgba(17,17,17,.04);
-    padding: 44px 48px;
-    display: flex; flex-direction: column;
-    gap: 22px;
+  /* ---- board ---- */
+  .board{
+    position:relative; width:900px; height:900px; padding:40px 44px 34px;
+    background:
+      radial-gradient(120% 90% at 50% -10%, #1A1F2E 0%, var(--track) 55%, #0F121B 100%);
+    border:1px solid var(--line); border-radius:var(--card-r);
+    box-shadow:0 40px 90px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.04);
+    display:flex; flex-direction:column; overflow:hidden;
+  }
+  /* faint track hairlines running the full board */
+  .board::before{
+    content:""; position:absolute; inset:0; pointer-events:none; opacity:.5;
+    background-image:repeating-linear-gradient(90deg, transparent 0 calc(12.5% - 1px), rgba(255,255,255,.035) calc(12.5% - 1px) 12.5%);
   }
 
-  .top { display: flex; align-items: flex-start; justify-content: space-between; }
-  .title { font-size: 26px; font-weight: 700; letter-spacing: -.01em; }
-  .subtitle { font-size: 18px; color: var(--sub); margin-top: 4px; }
-  .runmeta { text-align: right; font-size: 18px; color: var(--sub); }
-  .runmeta b { color: var(--ink); font-weight: 600; }
+  /* ---- header ---- */
+  .head{display:flex; justify-content:space-between; align-items:flex-start; position:relative; z-index:2}
+  .title{font-family:"Archivo Black",Archivo,sans-serif; font-size:34px; line-height:.98;
+    letter-spacing:-.015em; text-transform:uppercase; color:var(--chalk)}
+  .title .vs{font-family:Archivo; font-weight:600; font-size:20px; text-transform:lowercase;
+    color:var(--amber); letter-spacing:0; margin:0 8px; vertical-align:2px}
+  .tagline{font-size:14px; color:var(--dim); margin-top:8px; max-width:360px}
+  .headright{display:flex; flex-direction:column; align-items:flex-end; gap:10px}
+  .score{display:flex; align-items:center; gap:8px; font-size:13px; color:var(--faint)}
+  .score b{color:var(--chalk); font-weight:700; font-family:"Spline Sans Mono",monospace}
+  .pennant{display:inline-flex; align-items:center; gap:7px; font-family:"Spline Sans Mono",monospace;
+    font-size:14px; font-weight:600; color:#0C0E15; background:var(--amber);
+    padding:6px 12px; border-radius:7px; opacity:0; transform:translateY(-3px); white-space:nowrap}
+  .pennant.show{opacity:1; transform:none}
+  .chip{font-size:11px; letter-spacing:.14em; color:var(--hl); border:1px solid rgba(53,224,197,.4);
+    border-radius:5px; padding:4px 8px; font-weight:600}
 
-  .runbtn {
-    appearance: none; border: 0; cursor: pointer;
-    background: var(--ink); color: #fff;
-    font-size: 22px; font-weight: 600; font-family: inherit;
-    padding: 16px 28px; border-radius: 14px;
-    align-self: flex-start;
-    transition: transform .06s ease, background .12s ease;
-  }
-  .runbtn:disabled { background: #B9B5AD; cursor: default; }
-  .runbtn.pressed { transform: scale(.97); background: #000; }
+  /* ---- lanes ---- */
+  .lanes{flex:1; display:flex; flex-direction:column; justify-content:center; gap:16px; position:relative; z-index:2; margin:8px 0}
+  .lane{position:relative; border:1px solid var(--line); border-radius:16px; padding:20px 22px 24px;
+    background:linear-gradient(180deg, var(--panel) 0%, #161A27 100%)}
+  .lane.dd{box-shadow:inset 3px 0 0 var(--dd)}
+  .lane.hl{box-shadow:inset 3px 0 0 var(--hl)}
+  .lane.win{border-color:rgba(255,182,74,.45)}
 
-  /* shared ruler */
-  .ruler { position: relative; height: 22px; margin: 0 2px; }
-  .ruler .mark { position: absolute; top: 0; transform: translateX(-50%);
-    font-size: 15px; color: var(--sub); }
-  .ruler .mark::before { content: ""; position: absolute; left: 50%; top: 20px;
-    width: 1px; height: 999px; background: var(--line); }
+  .lanetop{display:flex; align-items:center; gap:13px}
+  .pos{font-family:"Spline Sans Mono",monospace; font-size:13px; font-weight:700; width:30px; height:30px;
+    display:grid; place-items:center; border-radius:7px; color:var(--faint); border:1px solid var(--line)}
+  .pos.p1{color:#0C0E15; background:var(--amber); border-color:var(--amber)}
+  .pos.p2{color:var(--dim)}
+  .logo{width:34px; height:34px; border-radius:9px; display:grid; place-items:center;
+    background:var(--panel2); border:1px solid var(--line)}
+  .logo .mark{width:20px; height:20px; display:block}
+  .lane.dd .logo .mark{background:var(--dd); -webkit-mask:url(/brands/dreamdex/dreamdex-mark.svg) center/contain no-repeat; mask:url(/brands/dreamdex/dreamdex-mark.svg) center/contain no-repeat}
+  .lane.hl .logo .mark{background:var(--hl); -webkit-mask:url(/brands/hyperliquid/hyperliquid-mark.svg) center/contain no-repeat; mask:url(/brands/hyperliquid/hyperliquid-mark.svg) center/contain no-repeat}
+  .vname{font-size:19px; font-weight:700; color:var(--chalk); line-height:1.1}
+  .vname small{display:block; font-size:12px; font-weight:500; color:var(--faint); letter-spacing:.02em}
+  .verdict{margin-left:auto; font-size:13px; font-weight:600; color:var(--faint); opacity:0; display:flex; align-items:center; gap:6px}
+  .verdict::before{content:""; width:7px; height:7px; border-radius:50%; background:currentColor}
+  .lane.dd.settled .verdict{opacity:1; color:var(--dd)}
+  .lane.hl.settled .verdict{opacity:1; color:var(--hl)}
 
-  .lanes { position: relative; display: flex; flex-direction: column; gap: 20px; flex: 1; }
+  .readout{display:flex; align-items:baseline; gap:12px; margin:14px 0 4px}
+  .clock{font-family:"Spline Sans Mono",monospace; font-size:52px; font-weight:600; letter-spacing:-.02em; line-height:1}
+  .lane.dd .clock{color:var(--dd)} .lane.hl .clock{color:var(--hl)}
+  .delta{font-family:"Spline Sans Mono",monospace; font-size:20px; font-weight:600; color:var(--amber); opacity:0}
+  .lane.settled .delta.on{opacity:1}
+  .cap{font-size:13px; color:var(--dim); margin-bottom:16px}
 
-  .lane {
-    position: relative;
-    border: 1px solid var(--line); border-radius: 16px;
-    padding: 18px 20px 22px;
-    display: grid; grid-template-columns: 220px 1fr; grid-template-rows: auto auto;
-    column-gap: 18px; row-gap: 14px;
-    background: #fff;
-    transition: border-color .2s ease, box-shadow .2s ease;
-  }
-  .lane.settled { border-color: currentColor; }
-  .lane.dd { color: var(--dd); }
-  .lane.hl { color: var(--hl); }
+  /* track */
+  .track{position:relative; height:16px; border-radius:999px; background:var(--panel2);
+    border:1px solid var(--line); overflow:visible}
+  .fill{position:absolute; left:0; top:0; bottom:0; width:0; border-radius:999px; opacity:.85}
+  .lane.dd .fill{background:linear-gradient(90deg, rgba(140,140,255,.25), var(--dd))}
+  .lane.hl .fill{background:linear-gradient(90deg, rgba(53,224,197,.22), var(--hl))}
+  .car{position:absolute; top:50%; left:0; width:18px; height:18px; border-radius:50%;
+    transform:translate(-50%,-50%); box-shadow:0 0 0 4px rgba(18,21,32,.9)}
+  .lane.dd .car{background:var(--dd); box-shadow:0 0 0 4px rgba(18,21,32,.9),0 0 16px rgba(140,140,255,.7)}
+  .lane.hl .car{background:var(--hl); box-shadow:0 0 0 4px rgba(18,21,32,.9),0 0 16px rgba(53,224,197,.6)}
+  /* chequered flag at the car when settled */
+  .flag{position:absolute; top:-18px; transform:translateX(-50%); width:15px; height:11px; opacity:0;
+    background-image:conic-gradient(#EEF1F6 90deg,#0C0E15 90deg 180deg,#EEF1F6 180deg 270deg,#0C0E15 270deg);
+    background-size:5px 5px; border:1px solid var(--chalk); border-radius:1px}
+  .flag::after{content:""; position:absolute; left:-1px; top:0; width:1px; height:26px; background:var(--chalk)}
+  .lane.settled .flag{opacity:1}
+  /* split ticks */
+  .tick{position:absolute; top:50%; width:2px; height:16px; background:var(--faint); transform:translate(-50%,-50%)}
+  .tick .lbl{position:absolute; left:50%; transform:translateX(-50%); font-size:11px; color:var(--dim); white-space:nowrap;
+    font-family:"Spline Sans Mono",monospace}
+  .tick.above .lbl{bottom:16px} .tick.below .lbl{top:16px}
+  .tick.flagtick{background:var(--chalk)}
 
-  .lane .id { grid-column: 1; grid-row: 1; display: flex; align-items: center; gap: 12px; }
-  .lane .logo { width: 36px; height: 36px; border-radius: 9px; display: grid; place-items: center;
-    background: #F6F4EF; border: 1px solid var(--line); flex: none; }
-  .lane .logo-mark { width: 23px; height: 23px; display: block; }
-  /* DreamDEX mark is currentColor by design — render in its brand purple via mask (file unchanged) */
-  .logo-dd .logo-mark { background: var(--dd);
-    -webkit-mask: url(/brands/dreamdex/dreamdex-mark.svg) center/contain no-repeat;
-    mask: url(/brands/dreamdex/dreamdex-mark.svg) center/contain no-repeat; }
-  .lane .logo img.logo-mark { object-fit: contain; }
-  .lane .name { font-size: 21px; font-weight: 700; color: var(--ink); line-height: 1.1; }
-  .lane .name small { display: block; font-size: 15px; font-weight: 500; color: var(--sub); }
+  .method{margin-top:16px; font-size:13px; color:var(--dim); line-height:1.5; display:none}
+  .lane.settled .method{display:block}
+  .method .hash{color:var(--faint); font-family:"Spline Sans Mono",monospace; font-size:12px; word-break:break-all; margin-top:2px}
 
-  .lane .timer { grid-column: 1; grid-row: 2; align-self: center;
-    font-size: 19px; color: var(--sub); }
-  .lane .timer .ms { color: var(--ink); font-weight: 600; font-size: 22px; }
+  /* ---- ruler ---- */
+  .ruler{position:relative; height:22px; margin:2px 42px 0 52px; z-index:2}
+  .ruler .mark{position:absolute; top:0; transform:translateX(-50%); font-family:"Spline Sans Mono",monospace;
+    font-size:11px; color:var(--faint)}
+  .ruler .mark::before{content:""; position:absolute; left:50%; top:-8px; width:1px; height:6px; background:var(--line)}
 
-  .lane .finish { grid-column: 1; grid-row: 2; align-self: center; display: none; }
-  .lane.settled .finish { display: block; }
-  .lane.settled .timer { display: none; }
-  .lane .finish .big { font-size: 60px; font-weight: 800; letter-spacing: -.02em; color: currentColor; line-height: 1; }
-  .lane .finish .cap { font-size: 16px; color: var(--sub); margin-top: 2px; }
+  /* ---- recent runs ---- */
+  .results{display:flex; gap:9px; flex-wrap:wrap; min-height:22px; margin-top:16px; z-index:2; position:relative}
+  .pill{font-family:"Spline Sans Mono",monospace; font-size:12px; color:var(--dim);
+    border:1px solid var(--line); border-radius:7px; padding:4px 10px; background:rgba(255,255,255,.02)}
+  .pill b{color:var(--chalk); font-weight:600}
 
-  .track { grid-column: 2; grid-row: 1 / span 2; position: relative;
-    align-self: stretch; min-height: 92px; }
-  .track .rail { position: absolute; left: 0; right: 0; top: 46px; height: 4px;
-    background: var(--line); border-radius: 2px; }
-  .track .fill { position: absolute; left: 0; top: 46px; height: 4px; width: 0;
-    background: currentColor; border-radius: 2px; opacity: .5; }
-  .track .token { position: absolute; top: 40px; left: 0; width: 16px; height: 16px;
-    border-radius: 50%; background: currentColor; transform: translate(-50%, 0);
-    box-shadow: 0 0 0 4px color-mix(in srgb, currentColor 22%, transparent); }
-  .tick { position: absolute; top: 46px; transform: translate(-50%, -50%);
-    width: 9px; height: 9px; border-radius: 50%; background: #fff;
-    border: 2px solid currentColor; }
-  .tick .lbl { position: absolute; left: 50%; transform: translateX(-50%);
-    font-size: 13px; color: var(--sub); white-space: nowrap; }
-  .tick.below .lbl { top: 14px; }
-  .tick.above .lbl { bottom: 14px; }
-  .tick.settled-tick { width: 13px; height: 13px; background: currentColor; }
+  /* ---- START control ---- */
+  .startzone{position:absolute; inset:0; display:grid; place-items:center; z-index:6; pointer-events:none}
+  .start{pointer-events:auto; appearance:none; border:0; cursor:pointer; font-family:"Archivo Black",Archivo,sans-serif;
+    font-size:26px; letter-spacing:.02em; text-transform:uppercase; color:#06160E;
+    background:linear-gradient(180deg,#59E39A,var(--go)); padding:22px 54px; border-radius:16px;
+    display:inline-flex; align-items:center; gap:14px;
+    box-shadow:0 18px 40px rgba(53,209,126,.4), inset 0 1px 0 rgba(255,255,255,.4); transition:none}
+  .start .tri{font-size:20px}
+  .start.pressed{transform:translateY(2px); box-shadow:0 8px 20px rgba(53,209,126,.45), inset 0 2px 6px rgba(0,0,0,.2);
+    background:linear-gradient(180deg,#46d98c,#2bbd6c)}
 
-  .check { grid-column: 2; grid-row: 1; justify-self: end; align-self: start;
-    display: none; align-items: center; gap: 7px; color: currentColor;
-    font-size: 17px; font-weight: 600; }
-  .lane.settled .check { display: inline-flex; }
-  .check svg { width: 20px; height: 20px; }
-
-  .method { grid-column: 1 / span 2; grid-row: 3; font-size: 16px; color: var(--sub);
-    display: none; line-height: 1.4; }
-  .lane.settled .method { display: block; }
-  .method .hash { color: var(--ink); font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    font-size: 13px; word-break: break-all; }
-
-  /* winner badge — pinned in the header, out of flow so it never reflows the
-     title and never touches the lanes. No transition: frame-exact replay safe. */
-  .runmeta { position: relative; }
-  .badge { position: absolute; top: 30px; right: 0; background: var(--ink); color: #fff;
-    font-size: 16px; font-weight: 700; padding: 8px 16px; border-radius: 999px;
-    white-space: nowrap; box-shadow: 0 10px 30px rgba(17,17,17,.18); opacity: 0; }
-  .badge.show { opacity: 1; }
-
-  .results { display: flex; align-items: center; gap: 10px; font-size: 15px; color: var(--sub);
-    min-height: 24px; flex-wrap: wrap; }
-  .results .pill { background: #F6F4EF; border: 1px solid var(--line); border-radius: 999px;
-    padding: 4px 11px; }
-  .results .pill b { color: var(--ink); }
+  /* ---- cursor (film pre-roll only) ---- */
+  .cursor{position:absolute; left:0; top:0; width:30px; height:30px; z-index:8; pointer-events:none;
+    opacity:0; transform:translate(-3px,-3px); filter:drop-shadow(0 3px 5px rgba(0,0,0,.5))}
+  .cursor.on{opacity:1}
+  .cursor .ring{position:absolute; left:-9px; top:-9px; width:34px; height:34px; border-radius:50%;
+    border:2px solid var(--go); opacity:0; transform:scale(.4)}
+  .cursor.click .ring{opacity:.9; transform:scale(1); transition:transform .18s ease, opacity .18s ease}
 </style>
 </head>
 <body>
-  <div class="card" id="card">
-    <div class="top">
+  <div class="board" id="card">
+    <div class="head">
       <div>
-        <div class="title">On-chain round-trip: one tx vs two orders</div>
-        <div class="subtitle">A bot opens and closes a BTC perp. Timed to on-chain settlement.</div>
+        <div class="title">One&nbsp;tx<span class="vs">vs</span>two&nbsp;orders</div>
+        <div class="tagline">A bot opens and closes a BTC perpetual. Both lanes timed to on-chain settlement, from one box next to both venues.</div>
       </div>
-      <div class="runmeta">run <b id="runCount">0</b><div class="badge" id="badge"></div></div>
+      <div class="headright">
+        <div class="score">RUN <b id="runCount">0</b></div>
+        <span class="chip">TESTNET</span>
+        <div class="pennant" id="pennant"></div>
+      </div>
     </div>
 
-    <button class="runbtn" id="runBtn">Run both</button>
+    <div class="lanes">
+      <div class="lane dd" id="lane-dreamdex">
+        <div class="lanetop">
+          <span class="pos" data-pos></span>
+          <span class="logo"><span class="mark"></span></span>
+          <span class="vname">DreamDEX<small>Somnia testnet</small></span>
+          <span class="verdict" data-verdict>settled</span>
+        </div>
+        <div class="readout">
+          <span class="clock mono" data-ms>0 ms</span>
+          <span class="delta mono" data-delta></span>
+        </div>
+        <div class="cap" data-cap>one atomic on-chain transaction</div>
+        <div class="track" data-track>
+          <div class="fill" data-fill></div>
+          <div class="flag" data-flag></div>
+          <div class="car" data-token></div>
+        </div>
+        <div class="method" data-method></div>
+      </div>
+
+      <div class="lane hl" id="lane-hyperliquid">
+        <div class="lanetop">
+          <span class="pos" data-pos></span>
+          <span class="logo"><span class="mark"></span></span>
+          <span class="vname">Hyperliquid<small>HyperCore</small></span>
+          <span class="verdict" data-verdict>settled</span>
+        </div>
+        <div class="readout">
+          <span class="clock mono" data-ms>0 ms</span>
+          <span class="delta mono" data-delta></span>
+        </div>
+        <div class="cap" data-cap>two separate orders, signed to the API</div>
+        <div class="track" data-track>
+          <div class="fill" data-fill></div>
+          <div class="flag" data-flag></div>
+          <div class="car" data-token></div>
+        </div>
+        <div class="method" data-method></div>
+      </div>
+    </div>
 
     <div class="ruler" id="ruler"></div>
-
-    <div class="lanes" id="lanes">
-      <!-- DreamDEX -->
-      <div class="lane dd" id="lane-dreamdex">
-        <div class="id">
-          <span class="logo logo-dd"><span class="logo-mark"></span></span>
-          <span class="name">DreamDEX <small>Somnia · Hideki</small></span>
-        </div>
-        <div class="timer"><span class="ms" data-ms>0</span> ms</div>
-        <div class="finish"><div class="big" data-finish>—</div><div class="cap">settled on-chain</div></div>
-        <div class="track" data-track>
-          <div class="rail"></div><div class="fill" data-fill></div><div class="token" data-token></div>
-        </div>
-        <span class="check">✓ settled</span>
-        <div class="method" data-method></div>
-      </div>
-
-      <!-- Hyperliquid -->
-      <div class="lane hl" id="lane-hyperliquid">
-        <div class="id">
-          <span class="logo"><img class="logo-mark" src="/brands/hyperliquid/hyperliquid-mark.svg" alt="Hyperliquid" /></span>
-          <span class="name">Hyperliquid <small>HyperCore</small></span>
-        </div>
-        <div class="timer"><span class="ms" data-ms>0</span> ms</div>
-        <div class="finish"><div class="big" data-finish>—</div><div class="cap">settled on HyperCore</div></div>
-        <div class="track" data-track>
-          <div class="rail"></div><div class="fill" data-fill></div><div class="token" data-token></div>
-        </div>
-        <span class="check">✓ settled</span>
-        <div class="method" data-method></div>
-      </div>
-    </div>
-
     <div class="results" id="results"></div>
+
+    <div class="startzone" id="startzone">
+      <button class="start" id="runBtn"><span class="tri">▶</span>Start</button>
+    </div>
+    <div class="cursor" id="cursor" aria-hidden="true">
+      <svg width="30" height="30" viewBox="0 0 24 24"><path d="M4 2 L4 20 L9 15.2 L12 22 L15 20.8 L12 14 L19 14 Z" fill="#fff" stroke="#0C0E15" stroke-width="1.4" stroke-linejoin="round"/></svg>
+      <span class="ring"></span>
+    </div>
   </div>
 
 <script type="module">
 const qs = new URLSearchParams(location.search);
 if (qs.get("bg") === "transparent") document.body.classList.add("bg-transparent");
-const RULER_MAX = Number(qs.get("max") || 1600);      // ms mapped across the track
+const RULER_MAX = Number(qs.get("max") || 1600);
 const MARKS = [0, 250, 500, 750, 1000, 1250, 1500];
-
-const fmtMs = (ms) => Math.round(ms).toLocaleString();
+const fmtMs = (ms) => Math.round(ms).toLocaleString() + " ms";
 const fmtBig = (ms) => ms >= 1000 ? (ms / 1000).toFixed(2) + " s" : Math.round(ms) + " ms";
+const LABEL = { submit:"submit", accepted:"accepted", settled:"settled",
+  open_submit:"open", open_settled:"open ✓", close_submit:"close", close_settled:"close ✓" };
 
-// labels per step
-const LABEL = {
-  submit: "submit", accepted: "accepted", settled: "settled",
-  open_submit: "open submit", open_settled: "open settled",
-  close_submit: "close submit", close_settled: "close settled",
-};
-
-// build ruler
 const ruler = document.getElementById("ruler");
 for (const m of MARKS) {
   const el = document.createElement("div");
   el.className = "mark"; el.style.left = (m / RULER_MAX * 100) + "%";
-  el.textContent = m === 0 ? "0" : (m >= 1000 ? (m / 1000) + "s" : m + "ms");
+  el.textContent = m === 0 ? "0" : (m >= 1000 ? (m/1000)+"s" : m+"ms");
   ruler.appendChild(el);
 }
 
-function lane(venue) {
-  const root = document.getElementById("lane-" + venue);
-  return {
-    root,
-    track: root.querySelector("[data-track]"),
-    token: root.querySelector("[data-token]"),
-    fill: root.querySelector("[data-fill]"),
-    ms: root.querySelector("[data-ms]"),
-    finish: root.querySelector("[data-finish]"),
-    method: root.querySelector("[data-method]"),
-    ticks: [],
-    finishMs: null,
-  };
+function lane(v){
+  const root = document.getElementById("lane-"+v);
+  return { root, v,
+    track:root.querySelector("[data-track]"), token:root.querySelector("[data-token]"),
+    fill:root.querySelector("[data-fill]"), flag:root.querySelector("[data-flag]"),
+    ms:root.querySelector("[data-ms]"), method:root.querySelector("[data-method]"),
+    pos:root.querySelector("[data-pos]"), verdict:root.querySelector("[data-verdict]"),
+    delta:root.querySelector("[data-delta]"),
+    ticks:[], finishMs:null };
 }
-const L = { dreamdex: lane("dreamdex"), hyperliquid: lane("hyperliquid") };
+const L = { dreamdex:lane("dreamdex"), hyperliquid:lane("hyperliquid") };
+const xpct = (ms) => Math.min(100, (ms/RULER_MAX)*100);
+const pennant = document.getElementById("pennant");
+const results = document.getElementById("results");
 
-const xpct = (ms) => Math.min(100, (ms / RULER_MAX) * 100);
-
-function reset() {
-  document.getElementById("badge").classList.remove("show");
-  for (const v of Object.keys(L)) {
+function reset(){
+  pennant.classList.remove("show");
+  for (const v of Object.keys(L)){
     const l = L[v];
-    l.root.classList.remove("settled");
-    l.ticks.forEach((t) => t.remove()); l.ticks = [];
-    l.finishMs = null;
-    l.token.style.left = "0%"; l.fill.style.width = "0%";
-    l.ms.textContent = "0";
-    l.finish.textContent = "—"; l.method.innerHTML = "";
+    l.root.classList.remove("settled","win");
+    l.ticks.forEach(t=>t.remove()); l.ticks=[]; l.finishMs=null;
+    l.token.style.left="0%"; l.fill.style.width="0%";
+    l.ms.textContent="0 ms";
+    l.flag.style.left="0%";
+    l.pos.textContent=""; l.pos.className="pos";
+    l.delta.textContent=""; l.delta.classList.remove("on");
   }
 }
-
-function addTick(l, ev, i) {
+function addTick(l, ev, i){
   const t = document.createElement("div");
-  const settledStep = ev.step === "settled" || ev.step === "close_settled";
-  t.className = "tick " + (i % 2 ? "above" : "below") + (settledStep ? " settled-tick" : "");
-  t.style.left = xpct(ev.tMs) + "%";
+  const settledStep = ev.step==="settled" || ev.step==="close_settled";
+  t.className = "tick "+(i%2?"above":"below")+(settledStep?" flagtick":"");
+  t.style.left = xpct(ev.tMs)+"%";
   const lbl = document.createElement("span");
-  lbl.className = "lbl"; lbl.textContent = LABEL[ev.step] || ev.step;
-  t.appendChild(lbl);
-  l.track.appendChild(t); l.ticks.push(t);
+  lbl.className="lbl"; lbl.textContent = LABEL[ev.step]||ev.step;
+  t.appendChild(lbl); l.track.appendChild(t); l.ticks.push(t);
 }
-
-function settleLane(venue, summary) {
-  const l = L[venue];
-  l.finishMs = summary.finishMs;
-  l.root.classList.add("settled");
-  l.finish.textContent = fmtBig(summary.finishMs);
-  l.token.style.left = xpct(summary.finishMs) + "%";
-  l.fill.style.width = xpct(summary.finishMs) + "%";
-  // method + hashes
-  const hashes = (summary.txHashes || []).map((h) => `<div class="hash">${h}</div>`).join("");
-  l.method.innerHTML = `${summary.method || ""}${hashes}`;
+function settleLane(v, sum){
+  const l = L[v]; l.finishMs = sum.finishMs; l.root.classList.add("settled");
+  l.ms.textContent = fmtBig(sum.finishMs);
+  l.token.style.left = xpct(sum.finishMs)+"%"; l.fill.style.width = xpct(sum.finishMs)+"%";
+  l.flag.style.left = xpct(sum.finishMs)+"%";
+  const hashes = (sum.txHashes||[]).map(h=>`<div class="hash">${h}</div>`).join("");
+  l.method.innerHTML = `${sum.method||""}${hashes}`;
+}
+function finalize(race){
+  if (!(race.dreamdex?.ok && race.hyperliquid?.ok)) return;
+  const dd=race.dreamdex.finishMs, hl=race.hyperliquid.finishMs;
+  const win = dd<=hl ? "dreamdex":"hyperliquid", lose = win==="dreamdex"?"hyperliquid":"dreamdex";
+  L[win].pos.textContent="P1"; L[win].pos.classList.add("p1");
+  L[lose].pos.textContent="P2"; L[lose].pos.classList.add("p2");
+  L[win].root.classList.add("win");
+  const gap = Math.abs(hl-dd);
+  L[lose].delta.textContent = "+"+fmtBig(gap).replace(" ",""); L[lose].delta.classList.add("on");
+  const sp = race.speedup || +(Math.max(dd,hl)/Math.min(dd,hl)).toFixed(1);
+  pennant.textContent = sp+"× faster"; pennant.classList.add("show");
 }
 
 // ---- live driver (SSE) ----
-let running = false, clientT0 = 0, raf = 0;
-const live = { finished: {} };
-
-function animate() {
-  if (!running) return;
-  const elapsed = performance.now() - clientT0;
-  for (const v of Object.keys(L)) {
-    const l = L[v];
-    if (l.finishMs != null) continue;          // frozen at finish
-    const e = Math.min(elapsed, RULER_MAX);
-    l.token.style.left = xpct(e) + "%";
-    l.fill.style.width = xpct(e) + "%";
-    l.ms.textContent = fmtMs(elapsed);
+let running=false, clientT0=0, raf=0;
+function animate(){
+  if(!running) return;
+  const el = performance.now()-clientT0;
+  for(const v of Object.keys(L)){
+    const l=L[v]; if(l.finishMs!=null) continue;
+    const e=Math.min(el,RULER_MAX);
+    l.token.style.left=xpct(e)+"%"; l.fill.style.width=xpct(e)+"%"; l.ms.textContent=fmtMs(el);
   }
-  raf = requestAnimationFrame(animate);
+  raf=requestAnimationFrame(animate);
 }
+const runBtn=document.getElementById("runBtn");
+const startzone=document.getElementById("startzone");
+let runCount=0;
+runBtn.addEventListener("click", ()=>{ if(!FILM && !SEQ) startLive(); });
 
-const runBtn = document.getElementById("runBtn");
-let runCount = 0;
-const results = document.getElementById("results");
-
-runBtn.addEventListener("click", startLive);
-
-function startLive() {
-  if (running) return;
-  running = true;
-  runBtn.disabled = true; runBtn.classList.add("pressed");
-  setTimeout(() => runBtn.classList.remove("pressed"), 150);
-  reset();
-  clientT0 = performance.now();
-  raf = requestAnimationFrame(animate);
-
-  const es = new EventSource("/api/race");
-  const tickCount = { dreamdex: 0, hyperliquid: 0 };
-
-  es.addEventListener("tick", (m) => {
-    const ev = JSON.parse(m.data);
-    const l = L[ev.lane];
-    if (!l) return;
-    addTick(l, ev, tickCount[ev.lane]++);
-    l.ms.textContent = fmtMs(ev.tMs);     // snap to authoritative server ms
-  });
-
-  es.addEventListener("done", (m) => {
-    const race = JSON.parse(m.data);
-    if (race.dreamdex?.ok) settleLane("dreamdex", race.dreamdex);
-    if (race.hyperliquid?.ok) settleLane("hyperliquid", race.hyperliquid);
-    // badge
-    if (race.dreamdex?.ok && race.hyperliquid?.ok) {
-      const badge = document.getElementById("badge");
-      badge.textContent = `~${race.speedup}× faster · 1 tx vs 2 orders`;
-      badge.classList.add("show");
-    }
-    // results strip
-    runCount++;
-    document.getElementById("runCount").textContent = runCount;
-    const dd = race.dreamdex?.finishMs, hl = race.hyperliquid?.finishMs;
-    const pill = document.createElement("span");
-    pill.className = "pill";
-    pill.innerHTML = `#${runCount} <b>DreamDEX ${dd != null ? fmtBig(dd) : "—"}</b> vs HL ${hl != null ? fmtBig(hl) : "—"}`;
-    results.prepend(pill);
-    while (results.children.length > 5) results.removeChild(results.lastChild);
-
-    cleanup(es);
-  });
-
-  es.addEventListener("error", (m) => {
-    try { const e = JSON.parse(m.data); console.warn("lane error", e); } catch {}
-  });
-  es.onerror = () => cleanup(es);
+function startLive(){
+  if(running) return; running=true;
+  startzone.style.display="none";
+  reset(); clientT0=performance.now(); raf=requestAnimationFrame(animate);
+  const es=new EventSource("/api/race"); const tc={dreamdex:0,hyperliquid:0};
+  es.addEventListener("tick",(m)=>{ const ev=JSON.parse(m.data); const l=L[ev.lane]; if(!l) return;
+    addTick(l,ev,tc[ev.lane]++); l.ms.textContent=fmtMs(ev.tMs); });
+  es.addEventListener("done",(m)=>{ const race=JSON.parse(m.data);
+    if(race.dreamdex?.ok) settleLane("dreamdex",race.dreamdex);
+    if(race.hyperliquid?.ok) settleLane("hyperliquid",race.hyperliquid);
+    finalize(race);
+    runCount++; document.getElementById("runCount").textContent=runCount;
+    const dd=race.dreamdex?.finishMs, hl=race.hyperliquid?.finishMs;
+    const pill=document.createElement("span"); pill.className="pill";
+    pill.innerHTML=`#${runCount} <b>DreamDEX ${dd!=null?fmtBig(dd):"—"}</b> vs HL ${hl!=null?fmtBig(hl):"—"}`;
+    results.prepend(pill); while(results.children.length>5) results.removeChild(results.lastChild);
+    cleanup(es); });
+  es.onerror=()=>cleanup(es);
 }
+function cleanup(es){ es.close(); running=false; cancelAnimationFrame(raf); startzone.style.display=""; }
 
-function cleanup(es) {
-  es.close();
-  running = false;
-  cancelAnimationFrame(raf);
-  runBtn.disabled = false;
-}
-
-// ---- deterministic replay from a saved JSON (for frame-exact recording) ----
-// ?replay=runs/race-x.json loads it. window.setT(filmSeconds) renders the exact
-// state at a point in time — no wall-clock, so Playwright can step frames.
-// ?speed=N maps real-ms = filmSeconds * 1000 * N (N<1 slows playback down).
+// ---- deterministic replay (frame-exact) ----
 const SPEED = Number(qs.get("speed") || 1);
-let FILM = null;
-
-function renderAt(race, ms) {
+let FILM=null;
+function renderAt(race, ms){
   reset();
-  const tc = { dreamdex: 0, hyperliquid: 0 };
-  const all = [];
-  for (const v of ["dreamdex", "hyperliquid"]) (race[v]?.events || []).forEach((ev) => all.push(ev));
-  all.sort((a, b) => a.tMs - b.tMs);
-  for (const ev of all) if (ev.tMs <= ms) addTick(L[ev.lane], ev, tc[ev.lane]++);
-  for (const v of ["dreamdex", "hyperliquid"]) {
-    const sum = race[v]; const l = L[v];
-    if (sum?.ok && ms >= sum.finishMs) { settleLane(v, sum); }
-    else {
-      const e = Math.min(ms, RULER_MAX);
-      l.token.style.left = xpct(e) + "%"; l.fill.style.width = xpct(e) + "%";
-      l.ms.textContent = fmtMs(ms);
-    }
+  const tc={dreamdex:0,hyperliquid:0}; const all=[];
+  for(const v of ["dreamdex","hyperliquid"]) (race[v]?.events||[]).forEach(ev=>all.push(ev));
+  all.sort((a,b)=>a.tMs-b.tMs);
+  for(const ev of all) if(ev.tMs<=ms) addTick(L[ev.lane],ev,tc[ev.lane]++);
+  for(const v of ["dreamdex","hyperliquid"]){
+    const sum=race[v], l=L[v];
+    if(sum?.ok && ms>=sum.finishMs){ settleLane(v,sum); }
+    else { const e=Math.min(ms,RULER_MAX); l.token.style.left=xpct(e)+"%"; l.fill.style.width=xpct(e)+"%"; l.ms.textContent=fmtMs(ms); }
   }
-  const bothDone = race.dreamdex?.ok && ms >= race.dreamdex.finishMs && race.hyperliquid?.ok && ms >= race.hyperliquid.finishMs;
-  if (bothDone && race.speedup) {
-    const b = document.getElementById("badge"); b.textContent = `~${race.speedup}× faster · 1 tx vs 2 orders`; b.classList.add("show");
-  }
+  const bothDone = race.dreamdex?.ok && ms>=race.dreamdex.finishMs && race.hyperliquid?.ok && ms>=race.hyperliquid.finishMs;
+  if(bothDone) finalize(race);
+}
+window.setT = (filmSeconds)=>{ if(FILM) renderAt(FILM, filmSeconds*1000*SPEED); };
+window.filmDuration = ()=> FILM ? (Math.max(FILM.dreamdex?.finishMs||0,FILM.hyperliquid?.finishMs||0)+400)/1000/SPEED : 0;
+
+// ---- shared counter + strip ----
+const runFinish=(r)=>Math.max(r.dreamdex?.finishMs||0, r.hyperliquid?.finishMs||0);
+function setCounter(n){ document.getElementById("runCount").textContent=n; }
+function buildStrip(done){
+  results.innerHTML="";
+  done.forEach((r,idx)=>{ const dd=r.dreamdex?.finishMs, hl=r.hyperliquid?.finishMs;
+    const pill=document.createElement("span"); pill.className="pill";
+    pill.innerHTML=`#${idx+1} <b>DreamDEX ${dd!=null?fmtBig(dd):"—"}</b> vs HL ${hl!=null?fmtBig(hl):"—"}`;
+    results.prepend(pill); });
 }
 
-// Film hook (single run): t in film-seconds. Real ms = t * 1000 * SPEED.
-window.setT = (filmSeconds) => { if (FILM) renderAt(FILM, filmSeconds * 1000 * SPEED); };
-window.filmDuration = () => FILM ? (Math.max(FILM.dreamdex?.finishMs || 0, FILM.hyperliquid?.finishMs || 0) + 400) / 1000 / SPEED : 0;
+// ---- START-click pre-roll (baked into the film so it is deterministic) ----
+const cursor=document.getElementById("cursor");
+const PREROLL = qs.has("start") ? Number(qs.get("start")) || 1.7 : 0;   // seconds (real)
+function easeOut(u){ return 1-Math.pow(1-u,3); }
+let BTN=null;
+function btnCenter(){
+  const b=runBtn.getBoundingClientRect(), c=document.getElementById("card").getBoundingClientRect();
+  return { x:b.left-c.left+b.width/2, y:b.top-c.top+b.height/2 };
+}
+function renderPreroll(tReal){
+  reset(); setCounter(0);
+  startzone.style.display=""; runBtn.style.display="";
+  if(!BTN) BTN=btnCenter();
+  const sx=900*0.9, sy=900*0.92;              // cursor enters bottom-right
+  const travel=Math.max(PREROLL-0.55,0.4);
+  const u=Math.min(tReal/travel,1), p=easeOut(u);
+  const x=sx+(BTN.x-sx)*p, y=sy+(BTN.y-sy)*p;
+  cursor.style.transform=`translate(${x-3}px, ${y-3}px)`;
+  cursor.classList.add("on");
+  const clickAt=PREROLL-0.4;
+  if(tReal>=clickAt){ runBtn.classList.add("pressed"); cursor.classList.add("click"); }
+  else { runBtn.classList.remove("pressed"); cursor.classList.remove("click"); }
+}
+function hidePreroll(){ cursor.classList.remove("on","click"); runBtn.classList.remove("pressed"); startzone.style.display="none"; }
 
-// shared: run counter + last-5 strip, advanced to match a set of finished runs.
-const runFinish = (r) => Math.max(r.dreamdex?.finishMs || 0, r.hyperliquid?.finishMs || 0);
-function setCounter(n) { document.getElementById("runCount").textContent = n; }
-function buildStrip(doneRuns) {
-  results.innerHTML = "";
-  doneRuns.forEach((r, idx) => {
-    const dd = r.dreamdex?.finishMs, hl = r.hyperliquid?.finishMs;
-    const pill = document.createElement("span");
-    pill.className = "pill";
-    pill.innerHTML = `#${idx + 1} <b>DreamDEX ${dd != null ? fmtBig(dd) : "—"}</b> vs HL ${hl != null ? fmtBig(hl) : "—"}`;
-    results.prepend(pill);          // ascending idx + prepend -> newest first
+// ---- multi-run sequence (with optional START pre-roll) ----
+const GAP = Number(qs.get("gap") || 0.5);
+const HOLD = Number(qs.get("hold") || 1.5);
+let SEQ=null;
+function seqReal(tRun){                        // tRun = real seconds after the START fires
+  let acc=0;
+  for(let i=0;i<SEQ.length;i++){
+    const r=SEQ[i], play=runFinish(r)/1000;
+    if(tRun<acc+play){ renderAt(r,(tRun-acc)*1000); setCounter(i+1); buildStrip(SEQ.slice(0,i)); return; }
+    acc+=play; const after = i===SEQ.length-1?HOLD:GAP;
+    if(tRun<acc+after){ renderAt(r,runFinish(r)); setCounter(i+1); buildStrip(SEQ.slice(0,i+1)); return; }
+    acc+=after;
+  }
+  const last=SEQ[SEQ.length-1]; renderAt(last,runFinish(last)); setCounter(SEQ.length); buildStrip(SEQ);
+}
+function seqDrive(filmSeconds){
+  const t=filmSeconds*SPEED;
+  if(t<PREROLL){ renderPreroll(t); return; }
+  hidePreroll(); seqReal(t-PREROLL);
+}
+function seqDuration(){
+  if(!SEQ) return 0;
+  const playSum=SEQ.reduce((s,r)=>s+runFinish(r)/1000,0);
+  return (PREROLL + playSum + (SEQ.length-1)*GAP + HOLD)/SPEED;
+}
+
+function play(){
+  if(qs.has("t")){ window.setT(Number(qs.get("t"))); return; }
+  const start=performance.now();
+  (function tick(){ const f=(performance.now()-start)/1000; window.setT(f);
+    if(f<window.filmDuration()) requestAnimationFrame(tick); })();
+}
+
+const seqParam=qs.get("seq"), replayUrl=qs.get("replay");
+if(seqParam){
+  startzone.style.display="none";
+  const urls=seqParam.split(",").map(s=>s.trim()).filter(Boolean);
+  Promise.all(urls.map(u=>fetch(u).then(r=>r.json()))).then(runs=>{
+    SEQ=runs; window.setT=seqDrive; window.filmDuration=seqDuration; play();
   });
-}
-
-// multi-run sequence: play several saved runs back-to-back at real cadence, with
-// the run counter and the strip advancing exactly like live "Run both" presses.
-//   ?seq=a.json,b.json,c.json   (&speed= real-time scale, &gap= pause between, &hold= final)
-const GAP = Number(qs.get("gap") || 0.5);     // settled-hold + "click" pause between runs (s)
-const HOLD = Number(qs.get("hold") || 1.5);   // final hold (s)
-let SEQ = null;
-function seqDrive(filmSeconds) {
-  const t = filmSeconds * SPEED;              // real seconds along the sequence
-  let acc = 0;
-  for (let i = 0; i < SEQ.length; i++) {
-    const r = SEQ[i], play = runFinish(r) / 1000;
-    if (t < acc + play) { renderAt(r, (t - acc) * 1000); setCounter(i + 1); buildStrip(SEQ.slice(0, i)); return; }
-    acc += play;
-    const after = i === SEQ.length - 1 ? HOLD : GAP;
-    if (t < acc + after) { renderAt(r, runFinish(r)); setCounter(i + 1); buildStrip(SEQ.slice(0, i + 1)); return; }
-    acc += after;
-  }
-  const last = SEQ[SEQ.length - 1];
-  renderAt(last, runFinish(last)); setCounter(SEQ.length); buildStrip(SEQ);
-}
-function seqDuration() {
-  if (!SEQ) return 0;
-  const playSum = SEQ.reduce((s, r) => s + runFinish(r) / 1000, 0);
-  return (playSum + (SEQ.length - 1) * GAP + HOLD) / SPEED;
-}
-
-// static frame (?t) or self-play preview — uses whatever window.setT/filmDuration are set.
-function play() {
-  if (qs.has("t")) { window.setT(Number(qs.get("t"))); return; }
-  const start = performance.now();
-  (function tick() {
-    const filmS = (performance.now() - start) / 1000;
-    window.setT(filmS);
-    if (filmS < window.filmDuration()) requestAnimationFrame(tick);
-  })();
-}
-
-const seqParam = qs.get("seq");
-const replayUrl = qs.get("replay");
-if (seqParam) {
-  runBtn.style.display = "none";
-  const urls = seqParam.split(",").map((s) => s.trim()).filter(Boolean);
-  Promise.all(urls.map((u) => fetch(u).then((r) => r.json()))).then((runs) => {
-    SEQ = runs;
-    window.setT = seqDrive;
-    window.filmDuration = seqDuration;
-    play();
-  });
-} else if (replayUrl) {
-  runBtn.style.display = "none";
-  fetch(replayUrl).then((r) => r.json()).then((race) => { FILM = race; play(); });
+} else if(replayUrl){
+  startzone.style.display="none";
+  fetch(replayUrl).then(r=>r.json()).then(race=>{ FILM=race; play(); });
 }
 </script>
 </body>
