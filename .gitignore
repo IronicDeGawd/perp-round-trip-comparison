@@ -1,0 +1,22 @@
+# secrets — never commit
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*-throwaway.json
+*-key.json
+wallet*.json
+
+# deps / build
+node_modules/
+dist/
+
+# saved run timelines keep the committed samples only
+runs/*.json
+!runs/sample-dreamdex.json
+!runs/sample-hyperliquid.json
+!runs/sample-race.json
+
+# os
+.DS_Store

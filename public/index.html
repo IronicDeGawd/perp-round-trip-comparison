@@ -1,0 +1,389 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>DreamDEX vs Hyperliquid — one-button round-trip race</title>
+<style>
+  :root {
+    --dd: #6E6EED;      /* DreamDEX accent */
+    --hl: #50D2C1;      /* Hyperliquid accent */
+    --ink: #111;
+    --sub: #6B6B6B;
+    --card: #ffffff;
+    --line: #ECE9E2;
+    --page: #F3EFE7;    /* cream wall */
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--page);
+    font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    color: var(--ink);
+    display: flex; align-items: center; justify-content: center;
+    min-height: 100vh;
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1;
+  }
+  body.bg-transparent { background: transparent; }
+
+  .card {
+    width: 900px; height: 900px;
+    background: var(--card);
+    border-radius: 24px;
+    box-shadow: 0 24px 60px rgba(17,17,17,.08), 0 2px 8px rgba(17,17,17,.04);
+    padding: 44px 48px;
+    display: flex; flex-direction: column;
+    gap: 22px;
+  }
+
+  .top { display: flex; align-items: flex-start; justify-content: space-between; }
+  .title { font-size: 26px; font-weight: 700; letter-spacing: -.01em; }
+  .subtitle { font-size: 18px; color: var(--sub); margin-top: 4px; }
+  .runmeta { text-align: right; font-size: 18px; color: var(--sub); }
+  .runmeta b { color: var(--ink); font-weight: 600; }
+
+  .runbtn {
+    appearance: none; border: 0; cursor: pointer;
+    background: var(--ink); color: #fff;
+    font-size: 22px; font-weight: 600; font-family: inherit;
+    padding: 16px 28px; border-radius: 14px;
+    align-self: flex-start;
+    transition: transform .06s ease, background .12s ease;
+  }
+  .runbtn:disabled { background: #B9B5AD; cursor: default; }
+  .runbtn.pressed { transform: scale(.97); background: #000; }
+
+  /* shared ruler */
+  .ruler { position: relative; height: 22px; margin: 0 2px; }
+  .ruler .mark { position: absolute; top: 0; transform: translateX(-50%);
+    font-size: 15px; color: var(--sub); }
+  .ruler .mark::before { content: ""; position: absolute; left: 50%; top: 20px;
+    width: 1px; height: 999px; background: var(--line); }
+
+  .lanes { position: relative; display: flex; flex-direction: column; gap: 20px; flex: 1; }
+
+  .lane {
+    position: relative;
+    border: 1px solid var(--line); border-radius: 16px;
+    padding: 18px 20px 22px;
+    display: grid; grid-template-columns: 220px 1fr; grid-template-rows: auto auto;
+    column-gap: 18px; row-gap: 14px;
+    background: #fff;
+    transition: border-color .2s ease, box-shadow .2s ease;
+  }
+  .lane.settled { border-color: currentColor; }
+  .lane.dd { color: var(--dd); }
+  .lane.hl { color: var(--hl); }
+
+  .lane .id { grid-column: 1; grid-row: 1; display: flex; align-items: center; gap: 12px; }
+  .lane .logo { width: 34px; height: 34px; border-radius: 9px; display: grid; place-items: center;
+    background: color-mix(in srgb, currentColor 14%, #fff); color: currentColor; flex: none; }
+  .lane .logo svg { width: 20px; height: 20px; }
+  .lane .name { font-size: 21px; font-weight: 700; color: var(--ink); line-height: 1.1; }
+  .lane .name small { display: block; font-size: 15px; font-weight: 500; color: var(--sub); }
+
+  .lane .timer { grid-column: 1; grid-row: 2; align-self: center;
+    font-size: 19px; color: var(--sub); }
+  .lane .timer .ms { color: var(--ink); font-weight: 600; font-size: 22px; }
+
+  .lane .finish { grid-column: 1; grid-row: 2; align-self: center; display: none; }
+  .lane.settled .finish { display: block; }
+  .lane.settled .timer { display: none; }
+  .lane .finish .big { font-size: 60px; font-weight: 800; letter-spacing: -.02em; color: currentColor; line-height: 1; }
+  .lane .finish .cap { font-size: 16px; color: var(--sub); margin-top: 2px; }
+
+  .track { grid-column: 2; grid-row: 1 / span 2; position: relative;
+    align-self: stretch; min-height: 92px; }
+  .track .rail { position: absolute; left: 0; right: 0; top: 46px; height: 4px;
+    background: var(--line); border-radius: 2px; }
+  .track .fill { position: absolute; left: 0; top: 46px; height: 4px; width: 0;
+    background: currentColor; border-radius: 2px; opacity: .5; }
+  .track .token { position: absolute; top: 40px; left: 0; width: 16px; height: 16px;
+    border-radius: 50%; background: currentColor; transform: translate(-50%, 0);
+    box-shadow: 0 0 0 4px color-mix(in srgb, currentColor 22%, transparent); }
+  .tick { position: absolute; top: 46px; transform: translate(-50%, -50%);
+    width: 9px; height: 9px; border-radius: 50%; background: #fff;
+    border: 2px solid currentColor; }
+  .tick .lbl { position: absolute; left: 50%; transform: translateX(-50%);
+    font-size: 13px; color: var(--sub); white-space: nowrap; }
+  .tick.below .lbl { top: 14px; }
+  .tick.above .lbl { bottom: 14px; }
+  .tick.settled-tick { width: 13px; height: 13px; background: currentColor; }
+
+  .check { grid-column: 2; grid-row: 1; justify-self: end; align-self: start;
+    display: none; align-items: center; gap: 7px; color: currentColor;
+    font-size: 17px; font-weight: 600; }
+  .lane.settled .check { display: inline-flex; }
+  .check svg { width: 20px; height: 20px; }
+
+  .method { grid-column: 1 / span 2; grid-row: 3; font-size: 16px; color: var(--sub);
+    display: none; line-height: 1.4; }
+  .lane.settled .method { display: block; }
+  .method .hash { color: var(--ink); font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 13px; word-break: break-all; }
+
+  /* winner badge between lanes */
+  .badge { position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%) scale(.9);
+    background: var(--ink); color: #fff; font-size: 20px; font-weight: 700;
+    padding: 12px 22px; border-radius: 999px; opacity: 0; pointer-events: none;
+    box-shadow: 0 10px 30px rgba(17,17,17,.25); transition: opacity .25s ease, transform .25s ease;
+    z-index: 5; white-space: nowrap; }
+  .badge.show { opacity: 1; transform: translate(-50%,-50%) scale(1); }
+
+  .results { display: flex; align-items: center; gap: 10px; font-size: 15px; color: var(--sub);
+    min-height: 24px; flex-wrap: wrap; }
+  .results .pill { background: #F6F4EF; border: 1px solid var(--line); border-radius: 999px;
+    padding: 4px 11px; }
+  .results .pill b { color: var(--ink); }
+</style>
+</head>
+<body>
+  <div class="card" id="card">
+    <div class="top">
+      <div>
+        <div class="title">On-chain round-trip: one tx vs two orders</div>
+        <div class="subtitle">A bot opens and closes a BTC perp. Timed to on-chain settlement.</div>
+      </div>
+      <div class="runmeta">run <b id="runCount">0</b></div>
+    </div>
+
+    <button class="runbtn" id="runBtn">Run both</button>
+
+    <div class="ruler" id="ruler"></div>
+
+    <div class="lanes" id="lanes">
+      <!-- DreamDEX -->
+      <div class="lane dd" id="lane-dreamdex">
+        <div class="id">
+          <span class="logo">◆</span>
+          <span class="name">DreamDEX <small>Somnia · Hideki</small></span>
+        </div>
+        <div class="timer"><span class="ms" data-ms>0</span> ms</div>
+        <div class="finish"><div class="big" data-finish>—</div><div class="cap">settled on-chain</div></div>
+        <div class="track" data-track>
+          <div class="rail"></div><div class="fill" data-fill></div><div class="token" data-token></div>
+        </div>
+        <span class="check">✓ settled</span>
+        <div class="method" data-method></div>
+      </div>
+
+      <div class="badge" id="badge"></div>
+
+      <!-- Hyperliquid -->
+      <div class="lane hl" id="lane-hyperliquid">
+        <div class="id">
+          <span class="logo">▲</span>
+          <span class="name">Hyperliquid <small>HyperCore</small></span>
+        </div>
+        <div class="timer"><span class="ms" data-ms>0</span> ms</div>
+        <div class="finish"><div class="big" data-finish>—</div><div class="cap">settled on HyperCore</div></div>
+        <div class="track" data-track>
+          <div class="rail"></div><div class="fill" data-fill></div><div class="token" data-token></div>
+        </div>
+        <span class="check">✓ settled</span>
+        <div class="method" data-method></div>
+      </div>
+    </div>
+
+    <div class="results" id="results"></div>
+  </div>
+
+<script type="module">
+const qs = new URLSearchParams(location.search);
+if (qs.get("bg") === "transparent") document.body.classList.add("bg-transparent");
+const RULER_MAX = Number(qs.get("max") || 1600);      // ms mapped across the track
+const MARKS = [0, 250, 500, 750, 1000, 1250, 1500];
+
+const fmtMs = (ms) => Math.round(ms).toLocaleString();
+const fmtBig = (ms) => ms >= 1000 ? (ms / 1000).toFixed(2) + " s" : Math.round(ms) + " ms";
+
+// labels per step
+const LABEL = {
+  submit: "submit", accepted: "accepted", settled: "settled",
+  open_submit: "open submit", open_settled: "open settled",
+  close_submit: "close submit", close_settled: "close settled",
+};
+
+// build ruler
+const ruler = document.getElementById("ruler");
+for (const m of MARKS) {
+  const el = document.createElement("div");
+  el.className = "mark"; el.style.left = (m / RULER_MAX * 100) + "%";
+  el.textContent = m === 0 ? "0" : (m >= 1000 ? (m / 1000) + "s" : m + "ms");
+  ruler.appendChild(el);
+}
+
+function lane(venue) {
+  const root = document.getElementById("lane-" + venue);
+  return {
+    root,
+    track: root.querySelector("[data-track]"),
+    token: root.querySelector("[data-token]"),
+    fill: root.querySelector("[data-fill]"),
+    ms: root.querySelector("[data-ms]"),
+    finish: root.querySelector("[data-finish]"),
+    method: root.querySelector("[data-method]"),
+    ticks: [],
+    finishMs: null,
+  };
+}
+const L = { dreamdex: lane("dreamdex"), hyperliquid: lane("hyperliquid") };
+
+const xpct = (ms) => Math.min(100, (ms / RULER_MAX) * 100);
+
+function reset() {
+  document.getElementById("badge").classList.remove("show");
+  for (const v of Object.keys(L)) {
+    const l = L[v];
+    l.root.classList.remove("settled");
+    l.ticks.forEach((t) => t.remove()); l.ticks = [];
+    l.finishMs = null;
+    l.token.style.left = "0%"; l.fill.style.width = "0%";
+    l.ms.textContent = "0";
+    l.finish.textContent = "—"; l.method.innerHTML = "";
+  }
+}
+
+function addTick(l, ev, i) {
+  const t = document.createElement("div");
+  const settledStep = ev.step === "settled" || ev.step === "close_settled";
+  t.className = "tick " + (i % 2 ? "above" : "below") + (settledStep ? " settled-tick" : "");
+  t.style.left = xpct(ev.tMs) + "%";
+  const lbl = document.createElement("span");
+  lbl.className = "lbl"; lbl.textContent = LABEL[ev.step] || ev.step;
+  t.appendChild(lbl);
+  l.track.appendChild(t); l.ticks.push(t);
+}
+
+function settleLane(venue, summary) {
+  const l = L[venue];
+  l.finishMs = summary.finishMs;
+  l.root.classList.add("settled");
+  l.finish.textContent = fmtBig(summary.finishMs);
+  l.token.style.left = xpct(summary.finishMs) + "%";
+  l.fill.style.width = xpct(summary.finishMs) + "%";
+  // method + hashes
+  const hashes = (summary.txHashes || []).map((h) => `<div class="hash">${h}</div>`).join("");
+  l.method.innerHTML = `${summary.method || ""}${hashes}`;
+}
+
+// ---- live driver (SSE) ----
+let running = false, clientT0 = 0, raf = 0;
+const live = { finished: {} };
+
+function animate() {
+  if (!running) return;
+  const elapsed = performance.now() - clientT0;
+  for (const v of Object.keys(L)) {
+    const l = L[v];
+    if (l.finishMs != null) continue;          // frozen at finish
+    const e = Math.min(elapsed, RULER_MAX);
+    l.token.style.left = xpct(e) + "%";
+    l.fill.style.width = xpct(e) + "%";
+    l.ms.textContent = fmtMs(elapsed);
+  }
+  raf = requestAnimationFrame(animate);
+}
+
+const runBtn = document.getElementById("runBtn");
+let runCount = 0;
+const results = document.getElementById("results");
+
+runBtn.addEventListener("click", startLive);
+
+function startLive() {
+  if (running) return;
+  running = true;
+  runBtn.disabled = true; runBtn.classList.add("pressed");
+  setTimeout(() => runBtn.classList.remove("pressed"), 150);
+  reset();
+  clientT0 = performance.now();
+  raf = requestAnimationFrame(animate);
+
+  const es = new EventSource("/api/race");
+  const tickCount = { dreamdex: 0, hyperliquid: 0 };
+
+  es.addEventListener("tick", (m) => {
+    const ev = JSON.parse(m.data);
+    const l = L[ev.lane];
+    if (!l) return;
+    addTick(l, ev, tickCount[ev.lane]++);
+    l.ms.textContent = fmtMs(ev.tMs);     // snap to authoritative server ms
+  });
+
+  es.addEventListener("done", (m) => {
+    const race = JSON.parse(m.data);
+    if (race.dreamdex?.ok) settleLane("dreamdex", race.dreamdex);
+    if (race.hyperliquid?.ok) settleLane("hyperliquid", race.hyperliquid);
+    // badge
+    if (race.dreamdex?.ok && race.hyperliquid?.ok) {
+      const badge = document.getElementById("badge");
+      badge.textContent = `~${race.speedup}× faster · 1 tx vs 2 orders`;
+      badge.classList.add("show");
+    }
+    // results strip
+    runCount++;
+    document.getElementById("runCount").textContent = runCount;
+    const dd = race.dreamdex?.finishMs, hl = race.hyperliquid?.finishMs;
+    const pill = document.createElement("span");
+    pill.className = "pill";
+    pill.innerHTML = `#${runCount} <b>DreamDEX ${dd != null ? fmtBig(dd) : "—"}</b> vs HL ${hl != null ? fmtBig(hl) : "—"}`;
+    results.prepend(pill);
+    while (results.children.length > 5) results.removeChild(results.lastChild);
+
+    cleanup(es);
+  });
+
+  es.addEventListener("error", (m) => {
+    try { const e = JSON.parse(m.data); console.warn("lane error", e); } catch {}
+  });
+  es.onerror = () => cleanup(es);
+}
+
+function cleanup(es) {
+  es.close();
+  running = false;
+  cancelAnimationFrame(raf);
+  runBtn.disabled = false;
+}
+
+// ---- optional deterministic replay from a saved JSON: ?replay=runs/race-x.json ----
+const replayUrl = qs.get("replay");
+if (replayUrl) {
+  runBtn.style.display = "none";
+  fetch(replayUrl).then((r) => r.json()).then((race) => replay(race));
+}
+function replay(race) {
+  reset();
+  const all = [];
+  for (const v of ["dreamdex", "hyperliquid"]) {
+    (race[v]?.events || []).forEach((ev) => all.push(ev));
+  }
+  all.sort((a, b) => a.tMs - b.tMs);
+  const tc = { dreamdex: 0, hyperliquid: 0 };
+  const start = performance.now();
+  let idx = 0;
+  (function tick() {
+    const e = performance.now() - start;
+    for (const v of ["dreamdex", "hyperliquid"]) {
+      const l = L[v]; if (l.finishMs != null) continue;
+      const ee = Math.min(e, RULER_MAX);
+      l.token.style.left = xpct(ee) + "%"; l.fill.style.width = xpct(ee) + "%";
+      l.ms.textContent = fmtMs(e);
+    }
+    while (idx < all.length && all[idx].tMs <= e) {
+      const ev = all[idx++]; addTick(L[ev.lane], ev, tc[ev.lane]++);
+    }
+    if (e < (Math.max(race.dreamdex?.finishMs || 0, race.hyperliquid?.finishMs || 0) + 60)) {
+      requestAnimationFrame(tick);
+    } else {
+      if (race.dreamdex?.ok) settleLane("dreamdex", race.dreamdex);
+      if (race.hyperliquid?.ok) settleLane("hyperliquid", race.hyperliquid);
+      if (race.speedup) { const b = document.getElementById("badge"); b.textContent = `~${race.speedup}× faster · 1 tx vs 2 orders`; b.classList.add("show"); }
+    }
+  })();
+}
+</script>
+</body>
+</html>
