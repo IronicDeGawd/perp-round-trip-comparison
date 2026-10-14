@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>One transaction vs two orders — DreamDEX and Hyperliquid, timed</title>
+<meta name="description" content="A bot opens and closes a BTC perpetual on DreamDEX and on Hyperliquid, timed to on-chain settlement. DreamDEX does the whole round-trip in one atomic transaction." />
+<style>
+  :root{
+    --page:#F3EFE7; --card:#ffffff; --ink:#111111; --sub:#6B6B6B;
+    --dd:#6E6EED; --hl:#1FB8A6; --line:#E7E2D8; --soft:#F6F4EF;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    background:var(--page); color:var(--ink);
+    font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+    font-variant-numeric:tabular-nums; font-feature-settings:"tnum" 1;
+    line-height:1.6; -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:720px; margin:0 auto; padding:64px 24px 96px}
+  .eyebrow{font-size:14px; letter-spacing:.12em; text-transform:uppercase; color:var(--sub); margin:0 0 14px}
+  h1{font-size:40px; line-height:1.15; letter-spacing:-.02em; font-weight:800; margin:0 0 16px}
+  .dek{font-size:20px; color:var(--sub); margin:0 0 36px}
+  h2{font-size:24px; letter-spacing:-.01em; font-weight:700; margin:48px 0 14px}
+  p{font-size:17px; margin:0 0 16px}
+  a{color:var(--dd); text-decoration:none; border-bottom:1px solid rgba(110,110,237,.3)}
+  a:hover{border-bottom-color:var(--dd)}
+  strong{font-weight:650}
+  .accent-dd{color:var(--dd)} .accent-hl{color:var(--hl)}
+
+  /* hero clip */
+  figure{margin:0 0 20px}
+  .clip{width:100%; border-radius:20px; background:var(--card); display:block;
+    box-shadow:0 20px 50px rgba(17,17,17,.08), 0 2px 8px rgba(17,17,17,.04)}
+  figcaption{font-size:14px; color:var(--sub); margin-top:12px; text-align:center}
+
+  /* big number callout */
+  .callout{display:flex; gap:18px; flex-wrap:wrap; margin:28px 0}
+  .stat{flex:1; min-width:200px; background:var(--card); border:1px solid var(--line);
+    border-radius:16px; padding:22px 24px}
+  .stat .k{font-size:14px; color:var(--sub); margin:0 0 6px}
+  .stat .v{font-size:44px; font-weight:800; letter-spacing:-.02em; line-height:1}
+  .stat .u{font-size:15px; color:var(--sub); margin-top:8px}
+
+  /* results table */
+  table{width:100%; border-collapse:collapse; margin:10px 0 8px; font-size:16px}
+  th,td{text-align:left; padding:12px 10px; border-bottom:1px solid var(--line)}
+  th{font-size:13px; letter-spacing:.04em; text-transform:uppercase; color:var(--sub); font-weight:600}
+  td.num{font-variant-numeric:tabular-nums; font-weight:600}
+  tr.hero td{background:var(--soft)}
+  .tnote{font-size:14px; color:var(--sub); margin-top:4px}
+
+  /* honest notes */
+  .notes{background:var(--card); border:1px solid var(--line); border-radius:16px; padding:8px 24px; margin:18px 0}
+  .notes li{font-size:16px; margin:14px 0; color:var(--ink)}
+  .notes li b{font-weight:650}
+
+  code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:14px;
+    background:var(--soft); border:1px solid var(--line); border-radius:6px; padding:1px 6px}
+  pre{background:var(--card); border:1px solid var(--line); border-radius:14px; padding:18px 20px;
+    overflow:auto; font-size:14px; line-height:1.6}
+  pre code{background:none; border:0; padding:0}
+  .foot{margin-top:56px; padding-top:24px; border-top:1px solid var(--line); font-size:15px; color:var(--sub)}
+  @media (max-width:540px){ h1{font-size:30px} .dek{font-size:18px} .stat .v{font-size:36px} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <p class="eyebrow">DreamDEX · Somnia</p>
+  <h1>One transaction vs two orders</h1>
+  <p class="dek">A bot opens <em>and</em> closes a BTC perpetual on two venues. We time each to
+    on-chain settlement — not to an API acknowledgement — from the same cloud box next to both.</p>
+
+  <figure>
+    <video class="clip" src="race.mp4" poster="race-poster.png" autoplay muted loop playsinline></video>
+    <figcaption>Three real runs, back-to-back, at real speed. DreamDEX finishes the round-trip in one
+      transaction while Hyperliquid is still settling the first of two orders.</figcaption>
+  </figure>
+
+  <p>On <strong>DreamDEX</strong> the open and the close go in <strong class="accent-dd">one atomic
+    on-chain transaction</strong>. The wallet is delegated (EIP-7702) to a small batcher contract, and
+    a single transaction places both orders against the pool's on-chain order book. Either both fills
+    land or neither does.</p>
+  <p>On <strong>Hyperliquid</strong> the open and the close are <strong class="accent-hl">two separate
+    signed orders</strong>. Each is a signed message sent to Hyperliquid's API server and matched on
+    HyperCore, its own order-book chain. They settle as two independent steps.</p>
+
+  <h2>What we measured</h2>
+  <p>Both sides measured the same way, from one cloud box in <strong>AWS Tokyo (<code>ap-northeast-1</code>)</strong>
+    — the region hosting both venues' infrastructure — timed to on-chain settlement.</p>
+
+  <div class="callout">
+    <div class="stat"><p class="k">DreamDEX — full round-trip</p>
+      <div class="v accent-dd">279 ms</div><p class="u">one atomic transaction</p></div>
+    <div class="stat"><p class="k">Hyperliquid — full round-trip</p>
+      <div class="v accent-hl">1.41 s</div><p class="u">two separate orders</p></div>
+  </div>
+
+  <table>
+    <thead><tr><th>Run</th><th>DreamDEX</th><th>Hyperliquid</th><th>Ratio</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td class="num accent-dd">354 ms</td><td class="num accent-hl">1.49 s</td><td class="num">4.2×</td></tr>
+      <tr><td>2</td><td class="num accent-dd">275 ms</td><td class="num accent-hl">1.52 s</td><td class="num">5.5×</td></tr>
+      <tr class="hero"><td>3</td><td class="num accent-dd">279 ms</td><td class="num accent-hl">1.41 s</td><td class="num">5.0×</td></tr>
+    </tbody>
+  </table>
+  <p class="tnote">Three consecutive runs. DreamDEX also does it as one transaction a smart-contract bot
+    cannot replicate on Hyperliquid, where the contract path (CoreWriter) settles asynchronously.</p>
+
+  <h2>Honest notes</h2>
+  <ul class="notes">
+    <li><b>This is a capability story, not a gas story.</b> On Somnia the EIP-7702 authorization costs
+      ~1.57M gas (far more than on Ethereum), so the atomic batch saves nothing on gas versus two
+      transactions. The point is <b>atomicity</b> — one all-or-nothing transaction — and self-custody,
+      not cost.</li>
+    <li><b>Hyperliquid's ~700 ms per order is real on-chain settlement</b>, not an off-chain trick. A
+      read from the same box was ~9 ms, so the ~700 ms is genuine HyperCore consensus for a write. The
+      honest distinction is <i>shape</i>: Hyperliquid has no single atomic on-chain open-and-close —
+      orders settle as separate steps.</li>
+    <li><b>Location matters.</b> The same DreamDEX round-trip measured from a laptop over the public
+      internet read ~1.4 s — all network round-trip. The numbers here are from a server next to the
+      venues; reproduce from there or expect inflation.</li>
+  </ul>
+
+  <h2>Reproduce it</h2>
+  <p>Testnet only. The repo holds a committed sample run, so the race UI replays with no setup; running
+    live needs a funded DreamDEX throwaway wallet and a Hyperliquid testnet agent.</p>
+<pre><code>npm install
+cp .env.example .env     # three testnet credentials
+npm run setup            # DreamDEX: approve margin, deposit, attach 7702
+npm run race             # serves the UI at http://localhost:8800</code></pre>
+  <p>Open the UI and press <strong>Run both</strong>. Each run is saved as a JSON timeline with its tx
+    hashes, which the UI can replay deterministically.</p>
+
+  <p class="foot">Every number on screen is measured; the tx hashes are real HyperCore and Hideki hashes.
+    Code and method: <a href="https://github.com/IronicDeGawd/dreamdex-vs-hyperliquid">github.com/IronicDeGawd/dreamdex-vs-hyperliquid</a>.</p>
+</div>
+</body>
+</html>
