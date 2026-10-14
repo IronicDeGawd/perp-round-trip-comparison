@@ -128,13 +128,13 @@
   .method .hash { color: var(--ink); font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
     font-size: 13px; word-break: break-all; }
 
-  /* winner badge between lanes */
-  .badge { position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%) scale(.9);
-    background: var(--ink); color: #fff; font-size: 20px; font-weight: 700;
-    padding: 12px 22px; border-radius: 999px; opacity: 0; pointer-events: none;
-    box-shadow: 0 10px 30px rgba(17,17,17,.25); transition: opacity .25s ease, transform .25s ease;
-    z-index: 5; white-space: nowrap; }
-  .badge.show { opacity: 1; transform: translate(-50%,-50%) scale(1); }
+  /* winner badge — pinned in the header, out of flow so it never reflows the
+     title and never touches the lanes. No transition: frame-exact replay safe. */
+  .runmeta { position: relative; }
+  .badge { position: absolute; top: 30px; right: 0; background: var(--ink); color: #fff;
+    font-size: 16px; font-weight: 700; padding: 8px 16px; border-radius: 999px;
+    white-space: nowrap; box-shadow: 0 10px 30px rgba(17,17,17,.18); opacity: 0; }
+  .badge.show { opacity: 1; }
 
   .results { display: flex; align-items: center; gap: 10px; font-size: 15px; color: var(--sub);
     min-height: 24px; flex-wrap: wrap; }
@@ -150,7 +150,7 @@
         <div class="title">On-chain round-trip: one tx vs two orders</div>
         <div class="subtitle">A bot opens and closes a BTC perp. Timed to on-chain settlement.</div>
       </div>
-      <div class="runmeta">run <b id="runCount">0</b></div>
+      <div class="runmeta">run <b id="runCount">0</b><div class="badge" id="badge"></div></div>
     </div>
 
     <button class="runbtn" id="runBtn">Run both</button>
@@ -172,8 +172,6 @@
         <span class="check">✓ settled</span>
         <div class="method" data-method></div>
       </div>
-
-      <div class="badge" id="badge"></div>
 
       <!-- Hyperliquid -->
       <div class="lane hl" id="lane-hyperliquid">
@@ -382,25 +380,75 @@ function renderAt(race, ms) {
   }
 }
 
-// Film hook: t in film-seconds. Real ms = t * 1000 * SPEED.
+// Film hook (single run): t in film-seconds. Real ms = t * 1000 * SPEED.
 window.setT = (filmSeconds) => { if (FILM) renderAt(FILM, filmSeconds * 1000 * SPEED); };
 window.filmDuration = () => FILM ? (Math.max(FILM.dreamdex?.finishMs || 0, FILM.hyperliquid?.finishMs || 0) + 400) / 1000 / SPEED : 0;
 
-const replayUrl = qs.get("replay");
-if (replayUrl) {
-  runBtn.style.display = "none";
-  fetch(replayUrl).then((r) => r.json()).then((race) => {
-    FILM = race;
-    if (qs.has("t")) { window.setT(Number(qs.get("t"))); }     // static frame
-    else {                                                      // self-play (preview)
-      const start = performance.now();
-      (function tick() {
-        const filmS = (performance.now() - start) / 1000;
-        window.setT(filmS);
-        if (filmS < window.filmDuration()) requestAnimationFrame(tick);
-      })();
-    }
+// shared: run counter + last-5 strip, advanced to match a set of finished runs.
+const runFinish = (r) => Math.max(r.dreamdex?.finishMs || 0, r.hyperliquid?.finishMs || 0);
+function setCounter(n) { document.getElementById("runCount").textContent = n; }
+function buildStrip(doneRuns) {
+  results.innerHTML = "";
+  doneRuns.forEach((r, idx) => {
+    const dd = r.dreamdex?.finishMs, hl = r.hyperliquid?.finishMs;
+    const pill = document.createElement("span");
+    pill.className = "pill";
+    pill.innerHTML = `#${idx + 1} <b>DreamDEX ${dd != null ? fmtBig(dd) : "—"}</b> vs HL ${hl != null ? fmtBig(hl) : "—"}`;
+    results.prepend(pill);          // ascending idx + prepend -> newest first
   });
+}
+
+// multi-run sequence: play several saved runs back-to-back at real cadence, with
+// the run counter and the strip advancing exactly like live "Run both" presses.
+//   ?seq=a.json,b.json,c.json   (&speed= real-time scale, &gap= pause between, &hold= final)
+const GAP = Number(qs.get("gap") || 0.5);     // settled-hold + "click" pause between runs (s)
+const HOLD = Number(qs.get("hold") || 1.5);   // final hold (s)
+let SEQ = null;
+function seqDrive(filmSeconds) {
+  const t = filmSeconds * SPEED;              // real seconds along the sequence
+  let acc = 0;
+  for (let i = 0; i < SEQ.length; i++) {
+    const r = SEQ[i], play = runFinish(r) / 1000;
+    if (t < acc + play) { renderAt(r, (t - acc) * 1000); setCounter(i + 1); buildStrip(SEQ.slice(0, i)); return; }
+    acc += play;
+    const after = i === SEQ.length - 1 ? HOLD : GAP;
+    if (t < acc + after) { renderAt(r, runFinish(r)); setCounter(i + 1); buildStrip(SEQ.slice(0, i + 1)); return; }
+    acc += after;
+  }
+  const last = SEQ[SEQ.length - 1];
+  renderAt(last, runFinish(last)); setCounter(SEQ.length); buildStrip(SEQ);
+}
+function seqDuration() {
+  if (!SEQ) return 0;
+  const playSum = SEQ.reduce((s, r) => s + runFinish(r) / 1000, 0);
+  return (playSum + (SEQ.length - 1) * GAP + HOLD) / SPEED;
+}
+
+// static frame (?t) or self-play preview — uses whatever window.setT/filmDuration are set.
+function play() {
+  if (qs.has("t")) { window.setT(Number(qs.get("t"))); return; }
+  const start = performance.now();
+  (function tick() {
+    const filmS = (performance.now() - start) / 1000;
+    window.setT(filmS);
+    if (filmS < window.filmDuration()) requestAnimationFrame(tick);
+  })();
+}
+
+const seqParam = qs.get("seq");
+const replayUrl = qs.get("replay");
+if (seqParam) {
+  runBtn.style.display = "none";
+  const urls = seqParam.split(",").map((s) => s.trim()).filter(Boolean);
+  Promise.all(urls.map((u) => fetch(u).then((r) => r.json()))).then((runs) => {
+    SEQ = runs;
+    window.setT = seqDrive;
+    window.filmDuration = seqDuration;
+    play();
+  });
+} else if (replayUrl) {
+  runBtn.style.display = "none";
+  fetch(replayUrl).then((r) => r.json()).then((race) => { FILM = race; play(); });
 }
 </script>
 </body>
