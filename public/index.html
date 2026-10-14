@@ -3,432 +3,360 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>DreamDEX vs Hyperliquid — round-trip timing board</title>
+<title>DreamDEX vs Hyperliquid — round trip to settlement</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Archivo:wght@400;500;600;700&family=Spline+Sans+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@500;600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
+  /* Streamline "Dim" tokens (Streamline-Somnia-Reactivity/context/plan/ui-design-system.md) */
   :root{
-    --track:#121520; --page:#0C0E15; --panel:#191D2B; --panel2:#1F2436;
-    --line:#2B3245; --chalk:#EEF1F6; --dim:#8992A6; --faint:#5A6378;
-    --dd:#8C8CFF; --hl:#35E0C5; --amber:#FFB64A; --go:#35D17E;
-    --card-r:26px;
+    --frame:#1d1e23; --panel:#23242a; --field:#2a2b32; --well:#26272d;
+    --line:#383942; --line2:#44454f; --ink:#e8e8ee; --ink2:#a3a3b0; --ink3:#8d8d9b;
+    --dd-tint:#332c4f; --dd-line:#6a55b8; --dd-ink:#b9a6f5; --dd-solid:#9b80f0;
+    --hl-ink:#61f1fd; --hl-tint:rgba(97,241,253,.12);
+    --ok-ink:#6ee7c6; --magenta:#fe54ff; --on-magenta:#18171d;
+    --page:#141519;
   }
   *{box-sizing:border-box}
   html,body{margin:0}
-  body{
-    background:var(--page); color:var(--chalk);
-    font-family:Archivo,-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
-    display:flex; align-items:center; justify-content:center; min-height:100vh;
-    -webkit-font-smoothing:antialiased;
-  }
+  body{background:var(--page); color:var(--ink); font-family:Inter,system-ui,sans-serif;
+    font-variant-numeric:tabular-nums; display:flex; align-items:center; justify-content:center; min-height:100vh}
   body.bg-transparent{background:transparent}
-  .mono{font-family:"Spline Sans Mono",ui-monospace,SFMono-Regular,Menlo,monospace; font-variant-numeric:tabular-nums}
+  .geist{font-family:Geist,Inter,sans-serif}
+  .mono{font-family:"JetBrains Mono",ui-monospace,Menlo,monospace}
 
-  /* ---- board ---- */
-  .board{
-    position:relative; width:900px; height:900px; padding:40px 44px 34px;
-    background:
-      radial-gradient(120% 90% at 50% -10%, #1A1F2E 0%, var(--track) 55%, #0F121B 100%);
-    border:1px solid var(--line); border-radius:var(--card-r);
-    box-shadow:0 40px 90px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.04);
-    display:flex; flex-direction:column; overflow:hidden;
-  }
-  /* faint track hairlines running the full board */
-  .board::before{
-    content:""; position:absolute; inset:0; pointer-events:none; opacity:.5;
-    background-image:repeating-linear-gradient(90deg, transparent 0 calc(12.5% - 1px), rgba(255,255,255,.035) calc(12.5% - 1px) 12.5%);
-  }
+  .board{position:relative; width:900px; height:900px; background:var(--frame); border:1px solid var(--line);
+    border-radius:14px; display:flex; flex-direction:column; overflow:hidden}
 
-  /* ---- header ---- */
-  .head{display:flex; justify-content:space-between; align-items:flex-start; position:relative; z-index:2}
-  .title{font-family:"Archivo Black",Archivo,sans-serif; font-size:34px; line-height:.98;
-    letter-spacing:-.015em; text-transform:uppercase; color:var(--chalk)}
-  .title .vs{font-family:Archivo; font-weight:600; font-size:20px; text-transform:lowercase;
-    color:var(--amber); letter-spacing:0; margin:0 8px; vertical-align:2px}
-  .tagline{font-size:14px; color:var(--dim); margin-top:8px; max-width:360px}
-  .headright{display:flex; flex-direction:column; align-items:flex-end; gap:10px}
-  .score{display:flex; align-items:center; gap:8px; font-size:13px; color:var(--faint)}
-  .score b{color:var(--chalk); font-weight:700; font-family:"Spline Sans Mono",monospace}
-  .pennant{display:inline-flex; align-items:center; gap:7px; font-family:"Spline Sans Mono",monospace;
-    font-size:14px; font-weight:600; color:#0C0E15; background:var(--amber);
-    padding:6px 12px; border-radius:7px; opacity:0; transform:translateY(-3px); white-space:nowrap}
-  .pennant.show{opacity:1; transform:none}
-  .chip{font-size:11px; letter-spacing:.14em; color:var(--hl); border:1px solid rgba(53,224,197,.4);
-    border-radius:5px; padding:4px 8px; font-weight:600}
+  .top{height:60px; flex-shrink:0; display:flex; align-items:center; justify-content:space-between; padding:0 16px 0 20px}
+  .top .left{display:flex; align-items:center; gap:12px}
+  .title{font-family:Geist,sans-serif; font-size:16px; font-weight:600}
+  .chip{font-size:12px; font-weight:500; color:var(--ink2); background:var(--field); border-radius:6px; padding:3px 8px}
+  .note{font-size:13px; color:var(--ink3)}
+  .top .right{display:flex; align-items:center; gap:14px}
+  .runlabel{font-size:13px; color:var(--ink3)}
+  .btn{height:36px; padding:0 16px; border:0; border-radius:8px; background:var(--magenta); color:var(--on-magenta);
+    font:600 13px Inter,sans-serif; cursor:pointer; min-width:96px}
+  .btn:focus-visible{outline:2px solid var(--dd-ink); outline-offset:2px}
+  .btn.busy{opacity:.55; cursor:default}
+  .btn.pressed{filter:brightness(.88); transform:translateY(1px)}
 
-  /* ---- lanes ---- */
-  .lanes{flex:1; display:flex; flex-direction:column; justify-content:center; gap:16px; position:relative; z-index:2; margin:8px 0}
-  .lane{position:relative; border:1px solid var(--line); border-radius:16px; padding:20px 22px 24px;
-    background:linear-gradient(180deg, var(--panel) 0%, #161A27 100%)}
-  .lane.dd{box-shadow:inset 3px 0 0 var(--dd)}
-  .lane.hl{box-shadow:inset 3px 0 0 var(--hl)}
-  .lane.win{border-color:rgba(255,182,74,.45)}
+  .panel{flex:1; margin:0 8px 8px; border:1px solid var(--line); border-radius:12px; background:var(--panel);
+    display:flex; flex-direction:column; overflow:hidden; min-height:0}
+  .phead{display:flex; align-items:center; justify-content:space-between; padding:16px 22px; border-bottom:1px solid var(--line)}
+  .phead .t{font-family:Geist,sans-serif; font-size:15px; font-weight:600}
+  .result{font-size:13px; font-weight:500; color:var(--ink3)}
+  .result.done{color:var(--ok-ink)}
 
-  .lanetop{display:flex; align-items:center; gap:13px}
-  .pos{font-family:"Spline Sans Mono",monospace; font-size:13px; font-weight:700; width:30px; height:30px;
-    display:grid; place-items:center; border-radius:7px; color:var(--faint); border:1px solid var(--line)}
-  .pos.p1{color:#0C0E15; background:var(--amber); border-color:var(--amber)}
-  .pos.p2{color:var(--dim)}
-  .logo{width:34px; height:34px; border-radius:9px; display:grid; place-items:center;
-    background:var(--panel2); border:1px solid var(--line)}
-  .logo .mark{width:20px; height:20px; display:block}
-  .lane.dd .logo .mark{background:var(--dd); -webkit-mask:url(/brands/dreamdex/dreamdex-mark.svg) center/contain no-repeat; mask:url(/brands/dreamdex/dreamdex-mark.svg) center/contain no-repeat}
-  .lane.hl .logo .mark{background:var(--hl); -webkit-mask:url(/brands/hyperliquid/hyperliquid-mark.svg) center/contain no-repeat; mask:url(/brands/hyperliquid/hyperliquid-mark.svg) center/contain no-repeat}
-  .vname{font-size:19px; font-weight:700; color:var(--chalk); line-height:1.1}
-  .vname small{display:block; font-size:12px; font-weight:500; color:var(--faint); letter-spacing:.02em}
-  .verdict{margin-left:auto; font-size:13px; font-weight:600; color:var(--faint); opacity:0; display:flex; align-items:center; gap:6px}
-  .verdict::before{content:""; width:7px; height:7px; border-radius:50%; background:currentColor}
-  .lane.dd.settled .verdict{opacity:1; color:var(--dd)}
-  .lane.hl.settled .verdict{opacity:1; color:var(--hl)}
+  .field{border:1px solid var(--line); border-radius:10px; background:var(--field); overflow:hidden}
+  .sect{padding:20px 22px 0}
+  .grid{display:grid; grid-template-columns:170px minmax(0,1fr) 118px; align-items:center}
+  .whead{height:34px; background:var(--well); border-bottom:1px solid var(--line); font-size:12px; color:var(--ink3)}
+  .ticks{position:relative; height:34px}
+  .ticks span{position:absolute; top:10px; transform:translateX(-50%)}
+  .ticks span:first-child{transform:none}
+  .row{height:148px}
+  .row + .row{border-top:1px solid var(--line)}
+  .venue{padding-left:16px; display:flex; align-items:center; gap:10px}
+  .venue img{width:22px; height:22px; filter:brightness(0) invert(.9)}
+  .venue .n{font-family:Geist,sans-serif; font-size:15px; font-weight:600}
+  .venue .s{font-size:12px; color:var(--ink3); margin-top:2px}
+  .track{position:relative; height:148px;
+    background-image:linear-gradient(90deg,var(--line) 1px,transparent 1px); background-size:31.25% 100%}
+  .leg{position:absolute; top:56px; height:22px; border-radius:4px}
+  .leg.dd{background:repeating-linear-gradient(135deg,rgba(155,128,240,.32) 0 4px,rgba(155,128,240,.14) 4px 8px)}
+  .leg.hl{background:repeating-linear-gradient(135deg,rgba(97,241,253,.22) 0 4px,rgba(97,241,253,.08) 4px 8px)}
+  .capseg{position:absolute; top:56px; width:6px; height:22px; border-radius:0 4px 4px 0}
+  .capseg.dd{background:var(--dd-solid)} .capseg.hl{background:var(--hl-ink); opacity:.85}
+  .lbl{position:absolute; top:86px; z-index:2; background:var(--field); padding:1px 6px 1px 0; font-size:11.5px; color:var(--ink3); white-space:nowrap}
+  .lbl.dd{color:var(--dd-ink)}
+  .doneline{position:absolute; top:0; bottom:0; border-left:1.5px dashed var(--dd-line); z-index:1}
+  .donetag{position:absolute; top:16px; z-index:2; background:var(--field); padding:1px 4px; font-size:11px; font-weight:500; color:var(--dd-ink); white-space:nowrap}
+  .settle{padding-right:16px; text-align:right}
+  .settle .v{font-family:Geist,sans-serif; font-size:22px; font-weight:600}
+  .settle .st{font-size:12px; font-weight:500; color:var(--ink3); margin-top:2px; min-height:15px}
+  .settle .st.ok{color:var(--ok-ink)}
 
-  .readout{display:flex; align-items:baseline; gap:12px; margin:14px 0 4px}
-  .clock{font-family:"Spline Sans Mono",monospace; font-size:52px; font-weight:600; letter-spacing:-.02em; line-height:1}
-  .lane.dd .clock{color:var(--dd)} .lane.hl .clock{color:var(--hl)}
-  .delta{font-family:"Spline Sans Mono",monospace; font-size:20px; font-weight:600; color:var(--amber); opacity:0}
-  .lane.settled .delta.on{opacity:1}
-  .cap{font-size:13px; color:var(--dim); margin-bottom:16px}
+  .tbl{font-size:13px}
+  .tr{display:grid; grid-template-columns:minmax(0,1.3fr) repeat(2,minmax(0,1fr)); height:42px; align-items:center; padding:0 16px; height:46px}
+  .legend{display:flex; gap:18px; padding:10px 2px 0; font-size:12px; color:var(--ink3)}
+  .legend span{display:inline-flex; align-items:center; gap:7px}
+  .sw{width:22px; height:10px; border-radius:2px; display:inline-block}
+  .tr + .tr{border-top:1px solid var(--line)}
+  .tr.th{height:34px; background:var(--well); font-size:12px; color:var(--ink3); border-bottom:1px solid var(--line)}
+  .tr.th + .tr{border-top:0}
+  .tr .k{color:var(--ink2)}
+  .tr .h{font-family:"JetBrains Mono",monospace; font-size:12px; color:var(--ink2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .muted{color:var(--ink3)}
 
-  /* track */
-  .track{position:relative; height:16px; border-radius:999px; background:var(--panel2);
-    border:1px solid var(--line); overflow:visible}
-  .fill{position:absolute; left:0; top:0; bottom:0; width:0; border-radius:999px; opacity:.85}
-  .lane.dd .fill{background:linear-gradient(90deg, rgba(140,140,255,.25), var(--dd))}
-  .lane.hl .fill{background:linear-gradient(90deg, rgba(53,224,197,.22), var(--hl))}
-  .car{position:absolute; top:50%; left:0; width:18px; height:18px; border-radius:50%;
-    transform:translate(-50%,-50%); box-shadow:0 0 0 4px rgba(18,21,32,.9)}
-  .lane.dd .car{background:var(--dd); box-shadow:0 0 0 4px rgba(18,21,32,.9),0 0 16px rgba(140,140,255,.7)}
-  .lane.hl .car{background:var(--hl); box-shadow:0 0 0 4px rgba(18,21,32,.9),0 0 16px rgba(53,224,197,.6)}
-  /* chequered flag at the car when settled */
-  .flag{position:absolute; top:-18px; transform:translateX(-50%); width:15px; height:11px; opacity:0;
-    background-image:conic-gradient(#EEF1F6 90deg,#0C0E15 90deg 180deg,#EEF1F6 180deg 270deg,#0C0E15 270deg);
-    background-size:5px 5px; border:1px solid var(--chalk); border-radius:1px}
-  .flag::after{content:""; position:absolute; left:-1px; top:0; width:1px; height:26px; background:var(--chalk)}
-  .lane.settled .flag{opacity:1}
-  /* split ticks */
-  .tick{position:absolute; top:50%; width:2px; height:16px; background:var(--faint); transform:translate(-50%,-50%)}
-  .tick .lbl{position:absolute; left:50%; transform:translateX(-50%); font-size:11px; color:var(--dim); white-space:nowrap;
-    font-family:"Spline Sans Mono",monospace}
-  .tick.above .lbl{bottom:16px} .tick.below .lbl{top:16px}
-  .tick.flagtick{background:var(--chalk)}
+  .recent{margin-top:auto; padding:14px 22px 16px; display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-size:12px; color:var(--ink3); min-height:52px}
+  .recent .c{background:var(--field); border-radius:6px; padding:4px 8px; color:var(--ink2)}
 
-  .method{margin-top:16px; font-size:13px; color:var(--dim); line-height:1.5; display:none}
-  .lane.settled .method{display:block}
-  .method .hash{color:var(--faint); font-family:"Spline Sans Mono",monospace; font-size:12px; word-break:break-all; margin-top:2px}
-
-  /* ---- ruler ---- */
-  .ruler{position:relative; height:22px; margin:2px 42px 0 52px; z-index:2}
-  .ruler .mark{position:absolute; top:0; transform:translateX(-50%); font-family:"Spline Sans Mono",monospace;
-    font-size:11px; color:var(--faint)}
-  .ruler .mark::before{content:""; position:absolute; left:50%; top:-8px; width:1px; height:6px; background:var(--line)}
-
-  /* ---- recent runs ---- */
-  .results{display:flex; gap:9px; flex-wrap:wrap; min-height:22px; margin-top:16px; z-index:2; position:relative}
-  .pill{font-family:"Spline Sans Mono",monospace; font-size:12px; color:var(--dim);
-    border:1px solid var(--line); border-radius:7px; padding:4px 10px; background:rgba(255,255,255,.02)}
-  .pill b{color:var(--chalk); font-weight:600}
-
-  /* ---- START control ---- */
-  .startzone{position:absolute; inset:0; display:grid; place-items:center; z-index:6; pointer-events:none}
-  .start{pointer-events:auto; appearance:none; border:0; cursor:pointer; font-family:"Archivo Black",Archivo,sans-serif;
-    font-size:26px; letter-spacing:.02em; text-transform:uppercase; color:#06160E;
-    background:linear-gradient(180deg,#59E39A,var(--go)); padding:22px 54px; border-radius:16px;
-    display:inline-flex; align-items:center; gap:14px;
-    box-shadow:0 18px 40px rgba(53,209,126,.4), inset 0 1px 0 rgba(255,255,255,.4); transition:none}
-  .start .tri{font-size:20px}
-  .start.pressed{transform:translateY(2px); box-shadow:0 8px 20px rgba(53,209,126,.45), inset 0 2px 6px rgba(0,0,0,.2);
-    background:linear-gradient(180deg,#46d98c,#2bbd6c)}
-
-  /* ---- cursor (film pre-roll only) ---- */
-  .cursor{position:absolute; left:0; top:0; width:30px; height:30px; z-index:8; pointer-events:none;
-    opacity:0; transform:translate(-3px,-3px); filter:drop-shadow(0 3px 5px rgba(0,0,0,.5))}
+  .cursor{position:absolute; left:0; top:0; width:26px; height:26px; z-index:20; pointer-events:none; opacity:0;
+    filter:drop-shadow(0 2px 3px rgba(0,0,0,.5))}
   .cursor.on{opacity:1}
-  .cursor .ring{position:absolute; left:-9px; top:-9px; width:34px; height:34px; border-radius:50%;
-    border:2px solid var(--go); opacity:0; transform:scale(.4)}
-  .cursor.click .ring{opacity:.9; transform:scale(1); transition:transform .18s ease, opacity .18s ease}
+  .cursor .ring{position:absolute; left:-10px; top:-10px; width:30px; height:30px; border-radius:50%;
+    border:2px solid var(--magenta); opacity:0}
+  .cursor.click .ring{opacity:.9}
+  @media (prefers-reduced-motion: reduce){ .btn.pressed{transform:none} }
 </style>
 </head>
 <body>
-  <div class="board" id="card">
-    <div class="head">
-      <div>
-        <div class="title">One&nbsp;tx<span class="vs">vs</span>two&nbsp;orders</div>
-        <div class="tagline">A bot opens and closes a BTC perpetual. Both lanes timed to on-chain settlement, from one box next to both venues.</div>
-      </div>
-      <div class="headright">
-        <div class="score">RUN <b id="runCount">0</b></div>
-        <span class="chip">TESTNET</span>
-        <div class="pennant" id="pennant"></div>
-      </div>
+<div class="board" id="card">
+  <div class="top">
+    <div class="left" id="topLeft">
+      <div class="title">Round-trip to settlement</div>
+      <div class="chip">BTC perpetual</div>
+      <div class="note">Testnet, timed from AWS Tokyo</div>
     </div>
-
-    <div class="lanes">
-      <div class="lane dd" id="lane-dreamdex">
-        <div class="lanetop">
-          <span class="pos" data-pos></span>
-          <span class="logo"><span class="mark"></span></span>
-          <span class="vname">DreamDEX<small>Somnia testnet</small></span>
-          <span class="verdict" data-verdict>settled</span>
-        </div>
-        <div class="readout">
-          <span class="clock mono" data-ms>0 ms</span>
-          <span class="delta mono" data-delta></span>
-        </div>
-        <div class="cap" data-cap>one atomic on-chain transaction</div>
-        <div class="track" data-track>
-          <div class="fill" data-fill></div>
-          <div class="flag" data-flag></div>
-          <div class="car" data-token></div>
-        </div>
-        <div class="method" data-method></div>
-      </div>
-
-      <div class="lane hl" id="lane-hyperliquid">
-        <div class="lanetop">
-          <span class="pos" data-pos></span>
-          <span class="logo"><span class="mark"></span></span>
-          <span class="vname">Hyperliquid<small>HyperCore</small></span>
-          <span class="verdict" data-verdict>settled</span>
-        </div>
-        <div class="readout">
-          <span class="clock mono" data-ms>0 ms</span>
-          <span class="delta mono" data-delta></span>
-        </div>
-        <div class="cap" data-cap>two separate orders, signed to the API</div>
-        <div class="track" data-track>
-          <div class="fill" data-fill></div>
-          <div class="flag" data-flag></div>
-          <div class="car" data-token></div>
-        </div>
-        <div class="method" data-method></div>
-      </div>
-    </div>
-
-    <div class="ruler" id="ruler"></div>
-    <div class="results" id="results"></div>
-
-    <div class="startzone" id="startzone">
-      <button class="start" id="runBtn"><span class="tri">▶</span>Start</button>
-    </div>
-    <div class="cursor" id="cursor" aria-hidden="true">
-      <svg width="30" height="30" viewBox="0 0 24 24"><path d="M4 2 L4 20 L9 15.2 L12 22 L15 20.8 L12 14 L19 14 Z" fill="#fff" stroke="#0C0E15" stroke-width="1.4" stroke-linejoin="round"/></svg>
-      <span class="ring"></span>
+    <div class="right">
+      <div class="runlabel" id="runLabel">Ready</div>
+      <button type="button" class="btn" id="runBtn">Start</button>
     </div>
   </div>
+
+  <div class="panel">
+    <div class="phead">
+      <div class="t">Open, then close, on both venues</div>
+      <div class="result" id="result">Press Start to run both</div>
+    </div>
+
+    <div class="sect">
+      <div class="field">
+        <div class="grid whead">
+          <div style="padding-left:16px">Venue</div>
+          <div class="ticks"><span style="left:0">0</span><span style="left:31.25%">0.5 s</span><span style="left:62.5%">1 s</span><span style="left:93.75%">1.5 s</span></div>
+          <div style="padding-right:16px;text-align:right">Settled</div>
+        </div>
+        <div class="grid row">
+          <div class="venue"><img src="/brands/dreamdex/dreamdex-mark.svg" alt="DreamDEX"><div><div class="n">DreamDEX</div><div class="s">1 transaction</div></div></div>
+          <div class="track" id="trk-dd"></div>
+          <div class="settle"><div class="v" id="v-dd">—</div><div class="st" id="st-dd"></div></div>
+        </div>
+        <div class="grid row">
+          <div class="venue"><img src="/brands/hyperliquid/hyperliquid-mark.svg" alt="Hyperliquid"><div><div class="n">Hyperliquid</div><div class="s">2 orders</div></div></div>
+          <div class="track" id="trk-hl"></div>
+          <div class="settle"><div class="v" id="v-hl">—</div><div class="st" id="st-hl"></div></div>
+        </div>
+      </div>
+      <div class="legend">
+        <span><i class="sw" style="background:repeating-linear-gradient(135deg,rgba(163,163,176,.35) 0 4px,rgba(163,163,176,.12) 4px 8px)"></i>waiting for the chain to settle</span>
+        <span><i class="sw" style="background:var(--ink2)"></i>settled on chain</span>
+        <span><i class="sw" style="border-left:1.5px dashed var(--dd-line);width:2px;border-radius:0"></i>DreamDEX finished</span>
+      </div>
+    </div>
+
+    <div class="sect">
+      <div class="field tbl">
+        <div class="tr th"><div>Step</div><div style="color:var(--dd-ink);font-weight:500">DreamDEX</div><div style="color:var(--hl-ink);font-weight:500">Hyperliquid</div></div>
+        <div class="tr"><div class="k">Submitted</div><div id="c-dd-sub">—</div><div id="c-hl-sub">—</div></div>
+        <div class="tr"><div class="k">Open settled</div><div id="c-dd-open">—</div><div id="c-hl-open">—</div></div>
+        <div class="tr"><div class="k">Close settled</div><div id="c-dd-close">—</div><div id="c-hl-close">—</div></div>
+        <div class="tr"><div class="k">All-or-nothing</div><div>Yes</div><div>No</div></div>
+        <div class="tr"><div class="k">Transaction</div><div class="h" id="c-dd-tx">—</div><div class="h" id="c-hl-tx">—</div></div>
+      </div>
+    </div>
+
+    <div class="recent" id="recent"><span>Recent runs</span><span class="muted" id="recentEmpty">none yet</span></div>
+  </div>
+
+  <div class="cursor" id="cursor" aria-hidden="true">
+    <svg width="26" height="26" viewBox="0 0 24 24"><path d="M4 2 L4 20 L9 15.2 L12 22 L15 20.8 L12 14 L19 14 Z" fill="#f4f4f7" stroke="#18171d" stroke-width="1.4" stroke-linejoin="round"/></svg>
+    <span class="ring"></span>
+  </div>
+</div>
 
 <script type="module">
 const qs = new URLSearchParams(location.search);
 if (qs.get("bg") === "transparent") document.body.classList.add("bg-transparent");
-const RULER_MAX = Number(qs.get("max") || 1600);
-const MARKS = [0, 250, 500, 750, 1000, 1250, 1500];
-const fmtMs = (ms) => Math.round(ms).toLocaleString() + " ms";
-const fmtBig = (ms) => ms >= 1000 ? (ms / 1000).toFixed(2) + " s" : Math.round(ms) + " ms";
-const LABEL = { submit:"submit", accepted:"accepted", settled:"settled",
-  open_submit:"open", open_settled:"open ✓", close_submit:"close", close_settled:"close ✓" };
+const MAX = Number(qs.get("max") || 1600);                 // ms across the track
+const $ = (id) => document.getElementById(id);
+const pct = (ms) => Math.max(0, Math.min(100, (ms / MAX) * 100));
+const fmtMs = (ms) => Math.round(ms).toLocaleString("en-US") + " ms";
+const fmtBig = (ms) => (ms >= 1000 ? (ms / 1000).toFixed(2) + " s" : Math.round(ms) + " ms");
+const short = (h) => (h ? h.slice(0, 6) + "…" + h.slice(-4) : "—");
+const evMap = (evs) => { const m = {}; for (const e of evs || []) m[e.step] = e.tMs; return m; };
 
-const ruler = document.getElementById("ruler");
-for (const m of MARKS) {
-  const el = document.createElement("div");
-  el.className = "mark"; el.style.left = (m / RULER_MAX * 100) + "%";
-  el.textContent = m === 0 ? "0" : (m >= 1000 ? (m/1000)+"s" : m+"ms");
-  ruler.appendChild(el);
+// ---- drawing: one view = {ms, dd:{events,sum}, hl:{events,sum}, speedup}
+function leg(kind, start, end, done) {
+  if (start == null || end <= start) return "";
+  const l = pct(start), w = Math.max(pct(end) - l, 0);
+  const cap = done ? `<div class="capseg ${kind}" style="left:calc(${pct(end)}% - 6px)"></div>` : "";
+  return `<div class="leg ${kind}" style="left:${l}%;width:${w}%"></div>${cap}`;
 }
+const label = (kind, at, text) => (at == null ? "" : `<div class="lbl ${kind}" style="left:${pct(at)}%">${text}</div>`);
 
-function lane(v){
-  const root = document.getElementById("lane-"+v);
-  return { root, v,
-    track:root.querySelector("[data-track]"), token:root.querySelector("[data-token]"),
-    fill:root.querySelector("[data-fill]"), flag:root.querySelector("[data-flag]"),
-    ms:root.querySelector("[data-ms]"), method:root.querySelector("[data-method]"),
-    pos:root.querySelector("[data-pos]"), verdict:root.querySelector("[data-verdict]"),
-    delta:root.querySelector("[data-delta]"),
-    ticks:[], finishMs:null };
-}
-const L = { dreamdex:lane("dreamdex"), hyperliquid:lane("hyperliquid") };
-const xpct = (ms) => Math.min(100, (ms/RULER_MAX)*100);
-const pennant = document.getElementById("pennant");
-const results = document.getElementById("results");
+function draw(v) {
+  const dm = evMap(v.dd.events), hm = evMap(v.hl.events);
+  const ddF = v.dd.sum?.finishMs, hlF = v.hl.sum?.finishMs;
+  const doneAt = ddF != null ? pct(ddF) : null;
+  const doneLine = doneAt == null ? "" : `<div class="doneline" style="left:${doneAt}%"></div>`;
 
-function reset(){
-  pennant.classList.remove("show");
-  for (const v of Object.keys(L)){
-    const l = L[v];
-    l.root.classList.remove("settled","win");
-    l.ticks.forEach(t=>t.remove()); l.ticks=[]; l.finishMs=null;
-    l.token.style.left="0%"; l.fill.style.width="0%";
-    l.ms.textContent="0 ms";
-    l.flag.style.left="0%";
-    l.pos.textContent=""; l.pos.className="pos";
-    l.delta.textContent=""; l.delta.classList.remove("on");
+  $("trk-dd").innerHTML =
+    leg("dd", dm.submit, ddF ?? v.ms, ddF != null) +
+    label("dd", dm.submit, "open + close in one block") + doneLine +
+    (doneAt == null ? "" : `<div class="donetag" style="left:calc(${doneAt}% + 4px)">DreamDEX done</div>`);
+
+  const o1 = hm.open_settled, c0 = hm.close_submit, c1 = hlF ?? hm.close_settled;
+  $("trk-hl").innerHTML =
+    leg("hl", hm.open_submit, o1 ?? v.ms, o1 != null) +
+    leg("hl", c0, c1 ?? v.ms, c1 != null) + doneLine +
+    label("", hm.open_submit, "open order, waits for settlement") +
+    label("", c0, "close order, waits again");
+
+  for (const [k, F] of [["dd", ddF], ["hl", hlF]]) {
+    $("v-" + k).textContent = F != null ? fmtBig(F) : v.ms > 0 ? fmtMs(v.ms) : "—";
+    const st = $("st-" + k);
+    st.textContent = F != null ? "settled" : v.ms > 0 ? "waiting" : "";
+    st.className = "st" + (F != null ? " ok" : "");
+  }
+
+  $("c-dd-sub").textContent = dm.submit != null ? fmtMs(dm.submit) : "—";
+  $("c-dd-open").textContent = ddF != null ? fmtMs(ddF) : "—";
+  $("c-dd-close").textContent = ddF != null ? fmtMs(ddF) + ", same transaction" : "—";
+  $("c-hl-sub").textContent = hm.open_submit != null ? fmtMs(hm.open_submit) : "—";
+  $("c-hl-open").textContent = o1 != null ? fmtMs(o1) : "—";
+  $("c-hl-close").textContent = hlF != null ? fmtMs(hlF) : "—";
+  $("c-dd-tx").textContent = v.dd.sum ? (v.dd.sum.txHashes || []).map(short).join(", ") || "—" : "—";
+  $("c-hl-tx").textContent = v.hl.sum ? (v.hl.sum.txHashes || []).map(short).join(", ") || "—" : "—";
+
+  const r = $("result");
+  if (ddF != null && hlF != null) {
+    const ddWin = ddF <= hlF, gap = Math.abs(hlF - ddF);
+    const sp = v.speedup || Math.max(ddF, hlF) / Math.min(ddF, hlF);
+    r.textContent = `${ddWin ? "DreamDEX" : "Hyperliquid"} settled ${fmtBig(gap)} sooner, ${Number(sp).toFixed(1)}× faster`;
+    r.className = "result done";
+  } else {
+    r.textContent = v.ms > 0 ? "Running on both venues" : "Press Start to run both";
+    r.className = "result";
   }
 }
-function addTick(l, ev, i){
-  const t = document.createElement("div");
-  const settledStep = ev.step==="settled" || ev.step==="close_settled";
-  t.className = "tick "+(i%2?"above":"below")+(settledStep?" flagtick":"");
-  t.style.left = xpct(ev.tMs)+"%";
-  const lbl = document.createElement("span");
-  lbl.className="lbl"; lbl.textContent = LABEL[ev.step]||ev.step;
-  t.appendChild(lbl); l.track.appendChild(t); l.ticks.push(t);
-}
-function settleLane(v, sum){
-  const l = L[v]; l.finishMs = sum.finishMs; l.root.classList.add("settled");
-  l.ms.textContent = fmtBig(sum.finishMs);
-  l.token.style.left = xpct(sum.finishMs)+"%"; l.fill.style.width = xpct(sum.finishMs)+"%";
-  l.flag.style.left = xpct(sum.finishMs)+"%";
-  const hashes = (sum.txHashes||[]).map(h=>`<div class="hash">${h}</div>`).join("");
-  l.method.innerHTML = `${sum.method||""}${hashes}`;
-}
-function finalize(race){
-  if (!(race.dreamdex?.ok && race.hyperliquid?.ok)) return;
-  const dd=race.dreamdex.finishMs, hl=race.hyperliquid.finishMs;
-  const win = dd<=hl ? "dreamdex":"hyperliquid", lose = win==="dreamdex"?"hyperliquid":"dreamdex";
-  L[win].pos.textContent="P1"; L[win].pos.classList.add("p1");
-  L[lose].pos.textContent="P2"; L[lose].pos.classList.add("p2");
-  L[win].root.classList.add("win");
-  const gap = Math.abs(hl-dd);
-  L[lose].delta.textContent = "+"+fmtBig(gap).replace(" ",""); L[lose].delta.classList.add("on");
-  const sp = race.speedup || +(Math.max(dd,hl)/Math.min(dd,hl)).toFixed(1);
-  pennant.textContent = sp+"× faster"; pennant.classList.add("show");
+const idle = () => ({ ms: 0, dd: { events: [], sum: null }, hl: { events: [], sum: null } });
+function viewAt(race, ms) {
+  const part = (s) => ({ events: (s?.events || []).filter((e) => e.tMs <= ms), sum: s?.ok && ms >= s.finishMs ? s : null });
+  return { ms, dd: part(race.dreamdex), hl: part(race.hyperliquid), speedup: race.speedup };
 }
 
-// ---- live driver (SSE) ----
-let running=false, clientT0=0, raf=0;
-function animate(){
-  if(!running) return;
-  const el = performance.now()-clientT0;
-  for(const v of Object.keys(L)){
-    const l=L[v]; if(l.finishMs!=null) continue;
-    const e=Math.min(el,RULER_MAX);
-    l.token.style.left=xpct(e)+"%"; l.fill.style.width=xpct(e)+"%"; l.ms.textContent=fmtMs(el);
-  }
-  raf=requestAnimationFrame(animate);
+// ---- chrome: button, run label, recent runs
+const runBtn = $("runBtn");
+function setBtn(text, busy, pressed) {
+  runBtn.textContent = text;
+  runBtn.classList.toggle("busy", !!busy); runBtn.classList.toggle("pressed", !!pressed);
+  runBtn.disabled = !!busy && !FILMING;
 }
-const runBtn=document.getElementById("runBtn");
-const startzone=document.getElementById("startzone");
-let runCount=0;
-runBtn.addEventListener("click", ()=>{ if(!FILM && !SEQ) startLive(); });
-
-function startLive(){
-  if(running) return; running=true;
-  startzone.style.display="none";
-  reset(); clientT0=performance.now(); raf=requestAnimationFrame(animate);
-  const es=new EventSource("/api/race"); const tc={dreamdex:0,hyperliquid:0};
-  es.addEventListener("tick",(m)=>{ const ev=JSON.parse(m.data); const l=L[ev.lane]; if(!l) return;
-    addTick(l,ev,tc[ev.lane]++); l.ms.textContent=fmtMs(ev.tMs); });
-  es.addEventListener("done",(m)=>{ const race=JSON.parse(m.data);
-    if(race.dreamdex?.ok) settleLane("dreamdex",race.dreamdex);
-    if(race.hyperliquid?.ok) settleLane("hyperliquid",race.hyperliquid);
-    finalize(race);
-    runCount++; document.getElementById("runCount").textContent=runCount;
-    const dd=race.dreamdex?.finishMs, hl=race.hyperliquid?.finishMs;
-    const pill=document.createElement("span"); pill.className="pill";
-    pill.innerHTML=`#${runCount} <b>DreamDEX ${dd!=null?fmtBig(dd):"—"}</b> vs HL ${hl!=null?fmtBig(hl):"—"}`;
-    results.prepend(pill); while(results.children.length>5) results.removeChild(results.lastChild);
-    cleanup(es); });
-  es.onerror=()=>cleanup(es);
-}
-function cleanup(es){ es.close(); running=false; cancelAnimationFrame(raf); startzone.style.display=""; }
-
-// ---- deterministic replay (frame-exact) ----
-const SPEED = Number(qs.get("speed") || 1);
-let FILM=null;
-function renderAt(race, ms){
-  reset();
-  const tc={dreamdex:0,hyperliquid:0}; const all=[];
-  for(const v of ["dreamdex","hyperliquid"]) (race[v]?.events||[]).forEach(ev=>all.push(ev));
-  all.sort((a,b)=>a.tMs-b.tMs);
-  for(const ev of all) if(ev.tMs<=ms) addTick(L[ev.lane],ev,tc[ev.lane]++);
-  for(const v of ["dreamdex","hyperliquid"]){
-    const sum=race[v], l=L[v];
-    if(sum?.ok && ms>=sum.finishMs){ settleLane(v,sum); }
-    else { const e=Math.min(ms,RULER_MAX); l.token.style.left=xpct(e)+"%"; l.fill.style.width=xpct(e)+"%"; l.ms.textContent=fmtMs(ms); }
-  }
-  const bothDone = race.dreamdex?.ok && ms>=race.dreamdex.finishMs && race.hyperliquid?.ok && ms>=race.hyperliquid.finishMs;
-  if(bothDone) finalize(race);
-}
-window.setT = (filmSeconds)=>{ if(FILM) renderAt(FILM, filmSeconds*1000*SPEED); };
-window.filmDuration = ()=> FILM ? (Math.max(FILM.dreamdex?.finishMs||0,FILM.hyperliquid?.finishMs||0)+400)/1000/SPEED : 0;
-
-// ---- shared counter + strip ----
-const runFinish=(r)=>Math.max(r.dreamdex?.finishMs||0, r.hyperliquid?.finishMs||0);
-function setCounter(n){ document.getElementById("runCount").textContent=n; }
-function buildStrip(done){
-  results.innerHTML="";
-  done.forEach((r,idx)=>{ const dd=r.dreamdex?.finishMs, hl=r.hyperliquid?.finishMs;
-    const pill=document.createElement("span"); pill.className="pill";
-    pill.innerHTML=`#${idx+1} <b>DreamDEX ${dd!=null?fmtBig(dd):"—"}</b> vs HL ${hl!=null?fmtBig(hl):"—"}`;
-    results.prepend(pill); });
-}
-
-// ---- START-click pre-roll (baked into the film so it is deterministic) ----
-const cursor=document.getElementById("cursor");
-const PREROLL = qs.has("start") ? Number(qs.get("start")) || 1.7 : 0;   // seconds (real)
-function easeOut(u){ return 1-Math.pow(1-u,3); }
-let BTN=null;
-function btnCenter(){
-  const b=runBtn.getBoundingClientRect(), c=document.getElementById("card").getBoundingClientRect();
-  return { x:b.left-c.left+b.width/2, y:b.top-c.top+b.height/2 };
-}
-function renderPreroll(tReal){
-  reset(); setCounter(0);
-  startzone.style.display=""; runBtn.style.display="";
-  if(!BTN) BTN=btnCenter();
-  const sx=900*0.9, sy=900*0.92;              // cursor enters bottom-right
-  const travel=Math.max(PREROLL-0.55,0.4);
-  const u=Math.min(tReal/travel,1), p=easeOut(u);
-  const x=sx+(BTN.x-sx)*p, y=sy+(BTN.y-sy)*p;
-  cursor.style.transform=`translate(${x-3}px, ${y-3}px)`;
-  cursor.classList.add("on");
-  const clickAt=PREROLL-0.4;
-  if(tReal>=clickAt){ runBtn.classList.add("pressed"); cursor.classList.add("click"); }
-  else { runBtn.classList.remove("pressed"); cursor.classList.remove("click"); }
-}
-function hidePreroll(){ cursor.classList.remove("on","click"); runBtn.classList.remove("pressed"); startzone.style.display="none"; }
-
-// ---- multi-run sequence (with optional START pre-roll) ----
-const GAP = Number(qs.get("gap") || 0.5);
-const HOLD = Number(qs.get("hold") || 1.5);
-let SEQ=null;
-function seqReal(tRun){                        // tRun = real seconds after the START fires
-  let acc=0;
-  for(let i=0;i<SEQ.length;i++){
-    const r=SEQ[i], play=runFinish(r)/1000;
-    if(tRun<acc+play){ renderAt(r,(tRun-acc)*1000); setCounter(i+1); buildStrip(SEQ.slice(0,i)); return; }
-    acc+=play; const after = i===SEQ.length-1?HOLD:GAP;
-    if(tRun<acc+after){ renderAt(r,runFinish(r)); setCounter(i+1); buildStrip(SEQ.slice(0,i+1)); return; }
-    acc+=after;
-  }
-  const last=SEQ[SEQ.length-1]; renderAt(last,runFinish(last)); setCounter(SEQ.length); buildStrip(SEQ);
-}
-function seqDrive(filmSeconds){
-  const t=filmSeconds*SPEED;
-  if(t<PREROLL){ renderPreroll(t); return; }
-  hidePreroll(); seqReal(t-PREROLL);
-}
-function seqDuration(){
-  if(!SEQ) return 0;
-  const playSum=SEQ.reduce((s,r)=>s+runFinish(r)/1000,0);
-  return (PREROLL + playSum + (SEQ.length-1)*GAP + HOLD)/SPEED;
-}
-
-function play(){
-  if(qs.has("t")){ window.setT(Number(qs.get("t"))); return; }
-  const start=performance.now();
-  (function tick(){ const f=(performance.now()-start)/1000; window.setT(f);
-    if(f<window.filmDuration()) requestAnimationFrame(tick); })();
-}
-
-const seqParam=qs.get("seq"), replayUrl=qs.get("replay");
-if(seqParam){
-  startzone.style.display="none";
-  const urls=seqParam.split(",").map(s=>s.trim()).filter(Boolean);
-  Promise.all(urls.map(u=>fetch(u).then(r=>r.json()))).then(runs=>{
-    SEQ=runs; window.setT=seqDrive; window.filmDuration=seqDuration; play();
+function setRecent(runs) {
+  const box = $("recent");
+  box.innerHTML = "<span>Recent runs</span>" + (runs.length ? "" : '<span class="muted">none yet</span>');
+  runs.slice(-5).map((r, i, a) => ({ r, n: runs.length - a.length + i + 1 })).reverse().forEach(({ r, n }) => {
+    const s = document.createElement("span"); s.className = "c";
+    s.textContent = `Run ${n}: ${fmtBig(r.dreamdex.finishMs)} vs ${fmtBig(r.hyperliquid.finishMs)}`;
+    box.appendChild(s);
   });
-} else if(replayUrl){
-  startzone.style.display="none";
-  fetch(replayUrl).then(r=>r.json()).then(race=>{ FILM=race; play(); });
+}
+draw(idle());
+
+// ---- live (SSE from the race server)
+let FILMING = false;
+const liveRuns = [];
+runBtn.addEventListener("click", () => { if (!FILMING) startLive(); });
+function startLive() {
+  if (runBtn.classList.contains("busy")) return;
+  const v = idle(); const t0 = performance.now(); let raf = 0, finished = false;
+  setBtn("Running", true);
+  $("runLabel").textContent = `Run ${liveRuns.length + 1}`;
+  const loop = () => { if (finished) return; v.ms = performance.now() - t0; draw(v); raf = requestAnimationFrame(loop); };
+  raf = requestAnimationFrame(loop);
+  const es = new EventSource("/api/race");
+  es.addEventListener("tick", (m) => { const e = JSON.parse(m.data); (e.lane === "dreamdex" ? v.dd : v.hl).events.push(e); });
+  es.addEventListener("done", (m) => {
+    const race = JSON.parse(m.data);
+    finished = true; cancelAnimationFrame(raf); es.close();
+    v.dd.sum = race.dreamdex?.ok ? race.dreamdex : null; v.hl.sum = race.hyperliquid?.ok ? race.hyperliquid : null;
+    v.speedup = race.speedup; v.ms = Math.max(v.dd.sum?.finishMs || 0, v.hl.sum?.finishMs || 0);
+    draw(v);
+    if (v.dd.sum && v.hl.sum) liveRuns.push(race);
+    setRecent(liveRuns); setBtn("Run again", false);
+  });
+  es.onerror = () => { if (!finished) { finished = true; cancelAnimationFrame(raf); es.close(); setBtn("Run again", false); } };
+}
+
+// ---- deterministic film clock: window.setT(seconds) renders an exact frame
+const SPEED = Number(qs.get("speed") || 1);
+const PRE = qs.has("start") ? Number(qs.get("start")) || 1.7 : 0;   // first click: cursor enters
+const CLICK = PRE ? Number(qs.get("approach") || 0.85) : 0;          // later clicks
+const PRESS = 0.2;
+const GAP = Number(qs.get("gap") || 0.9);
+const HOLD = Number(qs.get("hold") || 1.5);
+const cursor = $("cursor");
+const easeOut = (u) => 1 - Math.pow(1 - u, 3);
+let PTS = null;
+function points() {
+  if (PTS) return PTS;
+  const c = $("card").getBoundingClientRect(), b = runBtn.getBoundingClientRect();
+  const lft = $("topLeft").getBoundingClientRect(), rl = $("runLabel").getBoundingClientRect();
+  const btn = { x: b.left - c.left + b.width * 0.45, y: b.top - c.top + b.height * 0.55 };
+  PTS = { btn, rest: { x: (lft.right - c.left + rl.left - c.left) / 2, y: btn.y + 6 }, entry: { x: c.width * 0.62, y: c.height * 0.96 } };
+  return PTS;
+}
+function putCursor(p, clicking) {
+  cursor.classList.toggle("on", !!PRE);
+  cursor.classList.toggle("click", !!clicking);
+  cursor.style.transform = `translate(${p.x - 4}px, ${p.y - 2}px)`;
+}
+const lerp = (a, b, u) => ({ x: a.x + (b.x - a.x) * u, y: a.y + (b.y - a.y) * u });
+
+let RUNS = null;
+function segments() {
+  const s = [];
+  RUNS.forEach((r, i) => {
+    const appr = i === 0 ? PRE : CLICK;
+    if (appr) s.push({ kind: "approach", i, d: appr });
+    s.push({ kind: "play", i, d: Math.max(r.dreamdex.finishMs, r.hyperliquid.finishMs) / 1000 });
+    s.push({ kind: "after", i, d: i === RUNS.length - 1 ? HOLD : GAP });
+  });
+  return s;
+}
+function film(seconds) {
+  let t = seconds * SPEED;
+  const segs = segments(); let seg = segs[segs.length - 1], local = seg.d;
+  for (const s of segs) { if (t < s.d) { seg = s; local = t; break; } t -= s.d; }
+  const P = PRE ? points() : null, i = seg.i, total = RUNS.length;
+  if (seg.kind === "approach") {
+    draw(i === 0 ? idle() : viewAt(RUNS[i - 1], Infinity));
+    setRecent(RUNS.slice(0, i));
+    $("runLabel").textContent = i === 0 ? "Ready" : `Run ${i} of ${total}`;
+    const pressing = local >= seg.d - PRESS;
+    setBtn(i === 0 ? "Start" : "Run again", false, pressing);
+    const from = i === 0 ? P.entry : P.rest;
+    putCursor(lerp(from, P.btn, easeOut(Math.min(local / (seg.d - PRESS), 1))), pressing);
+  } else if (seg.kind === "play") {
+    draw(viewAt(RUNS[i], local * 1000));
+    setRecent(RUNS.slice(0, i));
+    $("runLabel").textContent = `Run ${i + 1} of ${total}`;
+    setBtn("Running", true);
+    if (P) putCursor(lerp(P.btn, P.rest, easeOut(Math.min(local / 0.4, 1))), false);
+  } else {
+    draw(viewAt(RUNS[i], Infinity));
+    setRecent(RUNS.slice(0, i + 1));
+    $("runLabel").textContent = `Run ${i + 1} of ${total}`;
+    setBtn("Run again", false);
+    if (P) putCursor(P.rest, false);
+  }
+}
+const filmLength = () => segments().reduce((a, s) => a + s.d, 0) / SPEED;
+
+const seq = qs.get("seq"), replay = qs.get("replay");
+const urls = seq ? seq.split(",").map((s) => s.trim()).filter(Boolean) : replay ? [replay] : null;
+if (urls) {
+  FILMING = true;
+  Promise.all(urls.map((u) => fetch(u).then((r) => r.json()))).then((runs) => {
+    RUNS = runs;
+    window.setT = film;
+    window.filmDuration = filmLength;
+    if (qs.has("t")) { film(Number(qs.get("t"))); return; }
+    const start = performance.now();
+    (function tick() { const f = (performance.now() - start) / 1000; film(f); if (f < filmLength()) requestAnimationFrame(tick); })();
+  });
 }
 </script>
 </body>
