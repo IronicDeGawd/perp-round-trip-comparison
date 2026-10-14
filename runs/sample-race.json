@@ -1,0 +1,83 @@
+{
+  "t0": 1792005883932,
+  "date": "2026-10-14T19:24:43.932Z",
+  "dreamdex": {
+    "venue": "dreamdex",
+    "label": "DreamDEX (Hideki)",
+    "method": "One on-chain transaction. Matching in the order-book contract. Open + close are atomic (all-or-nothing).",
+    "ok": true,
+    "finishMs": 279,
+    "txHashes": [
+      "0xe6cd251ab183e03b8750dbf2b7515f5015edf042dcf924b274baecd948ae3bfc"
+    ],
+    "events": [
+      {
+        "lane": "dreamdex",
+        "step": "submit",
+        "label": "Submit 1 tx (open + close)",
+        "tMs": 13
+      },
+      {
+        "lane": "dreamdex",
+        "step": "accepted",
+        "label": "Accepted by node",
+        "tMs": 46,
+        "hash": "0xe6cd251ab183e03b8750dbf2b7515f5015edf042dcf924b274baecd948ae3bfc"
+      },
+      {
+        "lane": "dreamdex",
+        "step": "settled",
+        "label": "Settled on-chain",
+        "tMs": 279,
+        "hash": "0xe6cd251ab183e03b8750dbf2b7515f5015edf042dcf924b274baecd948ae3bfc",
+        "status": "success",
+        "gasUsed": "3428093",
+        "fills": 2,
+        "blockNumber": "23544176"
+      }
+    ]
+  },
+  "hyperliquid": {
+    "venue": "hyperliquid",
+    "label": "Hyperliquid",
+    "method": "Signed message to the API server. Matching on HyperCore. Two separate orders (open, then close) — not atomic.",
+    "ok": true,
+    "finishMs": 1408,
+    "txHashes": [
+      "0xb96c26384fa786edbae5042bb4801f0107003e1deaaaa5bf5d34d18b0eab60d8",
+      "0xe1f35627153da44fe36d042bb4802d0102006e0cb030c32185bc0179d4317e3a"
+    ],
+    "events": [
+      {
+        "lane": "hyperliquid",
+        "step": "open_submit",
+        "label": "Submit open order",
+        "tMs": 30
+      },
+      {
+        "lane": "hyperliquid",
+        "step": "open_settled",
+        "label": "Open settled on HyperCore",
+        "tMs": 687,
+        "oid": 62718760083,
+        "avgPx": "81651.0"
+      },
+      {
+        "lane": "hyperliquid",
+        "step": "close_submit",
+        "label": "Submit close order",
+        "tMs": 687
+      },
+      {
+        "lane": "hyperliquid",
+        "step": "close_settled",
+        "label": "Close settled on HyperCore",
+        "tMs": 1408,
+        "oid": 62718761260,
+        "avgPx": "81642.0"
+      }
+    ]
+  },
+  "winner": "dreamdex",
+  "speedup": 5
+}
