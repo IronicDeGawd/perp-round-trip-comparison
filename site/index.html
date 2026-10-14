@@ -5,104 +5,108 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>One transaction vs two orders — DreamDEX and Hyperliquid, timed</title>
 <meta name="description" content="A bot opens and closes a BTC perpetual on DreamDEX and on Hyperliquid, timed to on-chain settlement. DreamDEX does the whole round-trip in one atomic transaction." />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Archivo:wght@400;500;600;700&family=Spline+Sans+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root{
-    --page:#F3EFE7; --card:#ffffff; --ink:#111111; --sub:#6B6B6B;
-    --dd:#6E6EED; --hl:#1FB8A6; --line:#E7E2D8; --soft:#F6F4EF;
+    --page:#0C0E15; --panel:#141825; --panel2:#1B2030; --line:#2A3042;
+    --chalk:#EEF1F6; --dim:#9AA2B4; --faint:#636C80;
+    --dd:#8C8CFF; --hl:#35E0C5; --amber:#FFB64A; --go:#35D17E;
   }
   *{box-sizing:border-box}
   html,body{margin:0}
   body{
-    background:var(--page); color:var(--ink);
-    font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
-    font-variant-numeric:tabular-nums; font-feature-settings:"tnum" 1;
-    line-height:1.6; -webkit-font-smoothing:antialiased;
+    background:var(--page); color:var(--chalk);
+    font-family:Archivo,-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+    line-height:1.7; -webkit-font-smoothing:antialiased;
   }
-  .wrap{max-width:720px; margin:0 auto; padding:64px 24px 96px}
-  .eyebrow{font-size:14px; letter-spacing:.12em; text-transform:uppercase; color:var(--sub); margin:0 0 14px}
-  h1{font-size:40px; line-height:1.15; letter-spacing:-.02em; font-weight:800; margin:0 0 16px}
-  .dek{font-size:20px; color:var(--sub); margin:0 0 36px}
-  h2{font-size:24px; letter-spacing:-.01em; font-weight:700; margin:48px 0 14px}
-  p{font-size:17px; margin:0 0 16px}
-  a{color:var(--dd); text-decoration:none; border-bottom:1px solid rgba(110,110,237,.3)}
-  a:hover{border-bottom-color:var(--dd)}
-  strong{font-weight:650}
-  .accent-dd{color:var(--dd)} .accent-hl{color:var(--hl)}
+  .mono{font-family:"Spline Sans Mono",ui-monospace,Menlo,monospace; font-variant-numeric:tabular-nums}
+  .wrap{max-width:760px; margin:0 auto; padding:72px 24px 110px}
 
-  /* hero clip */
+  h1{font-family:"Archivo Black",Archivo,sans-serif; font-size:44px; line-height:1.04;
+    letter-spacing:-.02em; text-transform:uppercase; margin:0 0 20px; overflow-wrap:break-word}
+  h1 .vs{font-family:Archivo; font-weight:600; font-size:26px; text-transform:lowercase; color:var(--amber); margin:0 9px; vertical-align:3px}
+  .dek{font-size:21px; color:var(--dim); margin:0 0 40px; max-width:62ch}
+  h2{font-family:"Archivo Black",Archivo,sans-serif; font-size:24px; text-transform:uppercase; letter-spacing:-.01em; margin:60px 0 16px}
+  p{font-size:17px; margin:0 0 18px; max-width:68ch}
+  a{color:var(--hl); text-decoration:none; border-bottom:1px solid rgba(53,224,197,.35)}
+  a:hover{border-bottom-color:var(--hl)}
+  .dd{color:var(--dd)} .hl{color:var(--hl)} .am{color:var(--amber)}
+  strong{font-weight:650; color:var(--chalk)}
+
   figure{margin:0 0 20px}
-  .clip{width:100%; border-radius:20px; background:var(--card); display:block;
-    box-shadow:0 20px 50px rgba(17,17,17,.08), 0 2px 8px rgba(17,17,17,.04)}
-  figcaption{font-size:14px; color:var(--sub); margin-top:12px; text-align:center}
+  .clip{width:100%; display:block; border-radius:22px; border:1px solid var(--line);
+    box-shadow:0 40px 90px rgba(0,0,0,.5)}
+  figcaption{font-size:14px; color:var(--faint); margin-top:14px; text-align:center}
 
-  /* big number callout */
-  .callout{display:flex; gap:18px; flex-wrap:wrap; margin:28px 0}
-  .stat{flex:1; min-width:200px; background:var(--card); border:1px solid var(--line);
-    border-radius:16px; padding:22px 24px}
-  .stat .k{font-size:14px; color:var(--sub); margin:0 0 6px}
-  .stat .v{font-size:44px; font-weight:800; letter-spacing:-.02em; line-height:1}
-  .stat .u{font-size:15px; color:var(--sub); margin-top:8px}
+  .callout{display:flex; gap:16px; flex-wrap:wrap; margin:28px 0}
+  .stat{flex:1; min-width:210px; background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:22px 24px}
+  .stat.dd{box-shadow:inset 3px 0 0 var(--dd)} .stat.hl{box-shadow:inset 3px 0 0 var(--hl)}
+  .stat .k{font-size:13px; color:var(--dim); margin:0 0 8px}
+  .stat .v{font-family:"Spline Sans Mono",monospace; font-size:46px; font-weight:600; letter-spacing:-.02em; line-height:1}
+  .stat.dd .v{color:var(--dd)} .stat.hl .v{color:var(--hl)}
+  .stat .u{font-size:14px; color:var(--faint); margin-top:10px}
 
-  /* results table */
-  table{width:100%; border-collapse:collapse; margin:10px 0 8px; font-size:16px}
-  th,td{text-align:left; padding:12px 10px; border-bottom:1px solid var(--line)}
-  th{font-size:13px; letter-spacing:.04em; text-transform:uppercase; color:var(--sub); font-weight:600}
-  td.num{font-variant-numeric:tabular-nums; font-weight:600}
-  tr.hero td{background:var(--soft)}
-  .tnote{font-size:14px; color:var(--sub); margin-top:4px}
+  table{width:100%; border-collapse:collapse; margin:12px 0; font-size:16px}
+  th,td{text-align:left; padding:13px 12px; border-bottom:1px solid var(--line)}
+  th{font-size:12px; letter-spacing:.08em; text-transform:uppercase; color:var(--faint); font-weight:600}
+  td.n{font-family:"Spline Sans Mono",monospace; font-weight:500}
+  td.dd{color:var(--dd)} td.hl{color:var(--hl)}
+  tr.hero td{background:rgba(255,182,74,.07)}
+  tr.hero td:first-child{box-shadow:inset 3px 0 0 var(--amber)}
+  .tnote{font-size:14px; color:var(--faint); margin-top:2px}
 
-  /* honest notes */
-  .notes{background:var(--card); border:1px solid var(--line); border-radius:16px; padding:8px 24px; margin:18px 0}
-  .notes li{font-size:16px; margin:14px 0; color:var(--ink)}
-  .notes li b{font-weight:650}
+  .notes{list-style:none; padding:0; margin:18px 0}
+  .notes li{background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:18px 22px; margin:12px 0; font-size:16px}
+  .notes li b{font-weight:650; color:var(--chalk)}
 
-  code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:14px;
-    background:var(--soft); border:1px solid var(--line); border-radius:6px; padding:1px 6px}
-  pre{background:var(--card); border:1px solid var(--line); border-radius:14px; padding:18px 20px;
-    overflow:auto; font-size:14px; line-height:1.6}
-  pre code{background:none; border:0; padding:0}
-  .foot{margin-top:56px; padding-top:24px; border-top:1px solid var(--line); font-size:15px; color:var(--sub)}
-  @media (max-width:540px){ h1{font-size:30px} .dek{font-size:18px} .stat .v{font-size:36px} }
+  code{font-family:"Spline Sans Mono",monospace; font-size:14px; background:var(--panel2); border:1px solid var(--line); border-radius:6px; padding:1px 6px; color:var(--chalk)}
+  pre{background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:20px 22px; overflow:auto; font-size:14px; line-height:1.7}
+  pre code{background:none; border:0; padding:0; color:var(--chalk)}
+  pre .c{color:var(--faint)}
+  .foot{margin-top:60px; padding-top:26px; border-top:1px solid var(--line); font-size:15px; color:var(--faint)}
+  @media (max-width:560px){ h1{font-size:34px} h1 .vs{font-size:22px} .dek{font-size:18px} .stat .v{font-size:38px} }
 </style>
 </head>
 <body>
 <div class="wrap">
-  <p class="eyebrow">DreamDEX · Somnia</p>
-  <h1>One transaction vs two orders</h1>
-  <p class="dek">A bot opens <em>and</em> closes a BTC perpetual on two venues. We time each to
+  <h1>One&nbsp;transaction<span class="vs">vs</span>two&nbsp;orders</h1>
+  <p class="dek">A bot opens <em>and</em> closes a BTC perpetual on two venues. Each side is timed to
     on-chain settlement — not to an API acknowledgement — from the same cloud box next to both.</p>
 
   <figure>
     <video class="clip" src="race.mp4" poster="race-poster.png" autoplay muted loop playsinline></video>
-    <figcaption>Three real runs, back-to-back, at real speed. DreamDEX finishes the round-trip in one
-      transaction while Hyperliquid is still settling the first of two orders.</figcaption>
+    <figcaption>Three real runs. DreamDEX crosses the line in one transaction while Hyperliquid is still
+      settling the first of its two orders.</figcaption>
   </figure>
 
-  <p>On <strong>DreamDEX</strong> the open and the close go in <strong class="accent-dd">one atomic
-    on-chain transaction</strong>. The wallet is delegated (EIP-7702) to a small batcher contract, and
-    a single transaction places both orders against the pool's on-chain order book. Either both fills
-    land or neither does.</p>
-  <p>On <strong>Hyperliquid</strong> the open and the close are <strong class="accent-hl">two separate
-    signed orders</strong>. Each is a signed message sent to Hyperliquid's API server and matched on
-    HyperCore, its own order-book chain. They settle as two independent steps.</p>
+  <p>On <strong class="dd">DreamDEX</strong> the open and the close go in one atomic on-chain
+    transaction. The wallet is delegated (EIP-7702) to a small batcher contract, and a single
+    transaction places both orders against the pool's on-chain order book. Either both fills land or
+    neither does.</p>
+  <p>On <strong class="hl">Hyperliquid</strong> the open and the close are two separate signed orders.
+    Each is a signed message sent to Hyperliquid's API server and matched on HyperCore, its own
+    order-book chain. They settle as two independent steps.</p>
 
   <h2>What we measured</h2>
-  <p>Both sides measured the same way, from one cloud box in <strong>AWS Tokyo (<code>ap-northeast-1</code>)</strong>
-    — the region hosting both venues' infrastructure — timed to on-chain settlement.</p>
+  <p>Both sides measured the same way, from one cloud box in <strong>AWS Tokyo</strong>
+    (<code>ap-northeast-1</code>) — the region hosting both venues' infrastructure — timed to on-chain
+    settlement.</p>
 
   <div class="callout">
-    <div class="stat"><p class="k">DreamDEX — full round-trip</p>
-      <div class="v accent-dd">279 ms</div><p class="u">one atomic transaction</p></div>
-    <div class="stat"><p class="k">Hyperliquid — full round-trip</p>
-      <div class="v accent-hl">1.41 s</div><p class="u">two separate orders</p></div>
+    <div class="stat dd"><p class="k">DreamDEX — full round-trip</p>
+      <div class="v">279 ms</div><p class="u">one atomic transaction</p></div>
+    <div class="stat hl"><p class="k">Hyperliquid — full round-trip</p>
+      <div class="v">1.41 s</div><p class="u">two separate orders</p></div>
   </div>
 
   <table>
-    <thead><tr><th>Run</th><th>DreamDEX</th><th>Hyperliquid</th><th>Ratio</th></tr></thead>
+    <thead><tr><th>Run</th><th>DreamDEX</th><th>Hyperliquid</th><th>Delta</th></tr></thead>
     <tbody>
-      <tr><td>1</td><td class="num accent-dd">354 ms</td><td class="num accent-hl">1.49 s</td><td class="num">4.2×</td></tr>
-      <tr><td>2</td><td class="num accent-dd">275 ms</td><td class="num accent-hl">1.52 s</td><td class="num">5.5×</td></tr>
-      <tr class="hero"><td>3</td><td class="num accent-dd">279 ms</td><td class="num accent-hl">1.41 s</td><td class="num">5.0×</td></tr>
+      <tr><td class="n">1</td><td class="n dd">354 ms</td><td class="n hl">1.49 s</td><td class="n am">4.2×</td></tr>
+      <tr><td class="n">2</td><td class="n dd">275 ms</td><td class="n hl">1.52 s</td><td class="n am">5.5×</td></tr>
+      <tr class="hero"><td class="n">3</td><td class="n dd">279 ms</td><td class="n hl">1.41 s</td><td class="n am">5.0×</td></tr>
     </tbody>
   </table>
   <p class="tnote">Three consecutive runs. DreamDEX also does it as one transaction a smart-contract bot
@@ -124,16 +128,16 @@
   </ul>
 
   <h2>Reproduce it</h2>
-  <p>Testnet only. The repo holds a committed sample run, so the race UI replays with no setup; running
+  <p>Testnet only. The repo holds committed sample runs, so the board replays with no setup; running
     live needs a funded DreamDEX throwaway wallet and a Hyperliquid testnet agent.</p>
 <pre><code>npm install
-cp .env.example .env     # three testnet credentials
-npm run setup            # DreamDEX: approve margin, deposit, attach 7702
-npm run race             # serves the UI at http://localhost:8800</code></pre>
-  <p>Open the UI and press <strong>Run both</strong>. Each run is saved as a JSON timeline with its tx
-    hashes, which the UI can replay deterministically.</p>
+cp .env.example .env     <span class="c"># three testnet credentials</span>
+npm run setup            <span class="c"># DreamDEX: approve margin, deposit, attach 7702</span>
+npm run race             <span class="c"># serves the board at http://localhost:8800</span></code></pre>
+  <p>Open the board and press <strong>Start</strong>. Each run is saved as a JSON timeline with its tx
+    hashes, which the board can replay deterministically.</p>
 
-  <p class="foot">Every number on screen is measured; the tx hashes are real HyperCore and Hideki hashes.
+  <p class="foot">Every number here is measured; the tx hashes are real HyperCore and Hideki hashes.
     Code and method: <a href="https://github.com/IronicDeGawd/dreamdex-vs-hyperliquid">github.com/IronicDeGawd/dreamdex-vs-hyperliquid</a>.</p>
 </div>
 </body>
