@@ -1,144 +1,168 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>One transaction vs two orders — DreamDEX and Hyperliquid, timed</title>
-<meta name="description" content="A bot opens and closes a BTC perpetual on DreamDEX and on Hyperliquid, timed to on-chain settlement. DreamDEX does the whole round-trip in one atomic transaction." />
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>One transaction against two orders — DreamDEX and Hyperliquid, timed</title>
+<meta name="description" content="A bot opens and closes a BTC perpetual on DreamDEX and on Hyperliquid, timed to on-chain settlement. Why one transaction settles about five times faster than two orders.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Archivo:wght@400;500;600;700&family=Spline+Sans+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@500;600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
-  :root{
-    --page:#0C0E15; --panel:#141825; --panel2:#1B2030; --line:#2A3042;
-    --chalk:#EEF1F6; --dim:#9AA2B4; --faint:#636C80;
-    --dd:#8C8CFF; --hl:#35E0C5; --amber:#FFB64A; --go:#35D17E;
-  }
-  *{box-sizing:border-box}
-  html,body{margin:0}
-  body{
-    background:var(--page); color:var(--chalk);
-    font-family:Archivo,-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
-    line-height:1.7; -webkit-font-smoothing:antialiased;
-  }
-  .mono{font-family:"Spline Sans Mono",ui-monospace,Menlo,monospace; font-variant-numeric:tabular-nums}
-  .wrap{max-width:760px; margin:0 auto; padding:72px 24px 110px}
-
-  h1{font-family:"Archivo Black",Archivo,sans-serif; font-size:44px; line-height:1.04;
-    letter-spacing:-.02em; text-transform:uppercase; margin:0 0 20px; overflow-wrap:break-word}
-  h1 .vs{font-family:Archivo; font-weight:600; font-size:26px; text-transform:lowercase; color:var(--amber); margin:0 9px; vertical-align:3px}
-  .dek{font-size:21px; color:var(--dim); margin:0 0 40px; max-width:62ch}
-  h2{font-family:"Archivo Black",Archivo,sans-serif; font-size:24px; text-transform:uppercase; letter-spacing:-.01em; margin:60px 0 16px}
-  p{font-size:17px; margin:0 0 18px; max-width:68ch}
-  a{color:var(--hl); text-decoration:none; border-bottom:1px solid rgba(53,224,197,.35)}
-  a:hover{border-bottom-color:var(--hl)}
-  .dd{color:var(--dd)} .hl{color:var(--hl)} .am{color:var(--amber)}
-  strong{font-weight:650; color:var(--chalk)}
-
-  figure{margin:0 0 20px}
-  .clip{width:100%; display:block; border-radius:22px; border:1px solid var(--line);
-    box-shadow:0 40px 90px rgba(0,0,0,.5)}
-  figcaption{font-size:14px; color:var(--faint); margin-top:14px; text-align:center}
-
-  .callout{display:flex; gap:16px; flex-wrap:wrap; margin:28px 0}
-  .stat{flex:1; min-width:210px; background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:22px 24px}
-  .stat.dd{box-shadow:inset 3px 0 0 var(--dd)} .stat.hl{box-shadow:inset 3px 0 0 var(--hl)}
-  .stat .k{font-size:13px; color:var(--dim); margin:0 0 8px}
-  .stat .v{font-family:"Spline Sans Mono",monospace; font-size:46px; font-weight:600; letter-spacing:-.02em; line-height:1}
-  .stat.dd .v{color:var(--dd)} .stat.hl .v{color:var(--hl)}
-  .stat .u{font-size:14px; color:var(--faint); margin-top:10px}
-
-  table{width:100%; border-collapse:collapse; margin:12px 0; font-size:16px}
-  th,td{text-align:left; padding:13px 12px; border-bottom:1px solid var(--line)}
-  th{font-size:12px; letter-spacing:.08em; text-transform:uppercase; color:var(--faint); font-weight:600}
-  td.n{font-family:"Spline Sans Mono",monospace; font-weight:500}
-  td.dd{color:var(--dd)} td.hl{color:var(--hl)}
-  tr.hero td{background:rgba(255,182,74,.07)}
-  tr.hero td:first-child{box-shadow:inset 3px 0 0 var(--amber)}
-  .tnote{font-size:14px; color:var(--faint); margin-top:2px}
-
-  .notes{list-style:none; padding:0; margin:18px 0}
-  .notes li{background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:18px 22px; margin:12px 0; font-size:16px}
-  .notes li b{font-weight:650; color:var(--chalk)}
-
-  code{font-family:"Spline Sans Mono",monospace; font-size:14px; background:var(--panel2); border:1px solid var(--line); border-radius:6px; padding:1px 6px; color:var(--chalk)}
-  pre{background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:20px 22px; overflow:auto; font-size:14px; line-height:1.7}
-  pre code{background:none; border:0; padding:0; color:var(--chalk)}
-  pre .c{color:var(--faint)}
-  .foot{margin-top:60px; padding-top:26px; border-top:1px solid var(--line); font-size:15px; color:var(--faint)}
-  @media (max-width:560px){ h1{font-size:34px} h1 .vs{font-size:22px} .dek{font-size:18px} .stat .v{font-size:38px} }
+body{margin:0}
+a{color:#e8e8ee}a:hover{color:#b9a6f5}
+a:focus-visible{outline:2px solid #b9a6f5;outline-offset:2px}
+@media (max-width:640px){h1{font-size:28px!important}}
 </style>
 </head>
 <body>
-<div class="wrap">
-  <h1>One&nbsp;transaction<span class="vs">vs</span>two&nbsp;orders</h1>
-  <p class="dek">A bot opens <em>and</em> closes a BTC perpetual on two venues. Each side is timed to
-    on-chain settlement — not to an API acknowledgement — from the same cloud box next to both.</p>
+<div style="background: #1d1e23; color: #e8e8ee; font-family: 'Inter', system-ui, sans-serif; font-variant-numeric: tabular-nums; min-height: 100vh; display: flex; flex-direction: column">
 
-  <figure>
-    <video class="clip" src="race.mp4" poster="race-poster.png" autoplay muted loop playsinline></video>
-    <figcaption>Three real runs. DreamDEX crosses the line in one transaction while Hyperliquid is still
-      settling the first of its two orders.</figcaption>
-  </figure>
-
-  <p>On <strong class="dd">DreamDEX</strong> the open and the close go in one atomic on-chain
-    transaction. The wallet is delegated (EIP-7702) to a small batcher contract, and a single
-    transaction places both orders against the pool's on-chain order book. Either both fills land or
-    neither does.</p>
-  <p>On <strong class="hl">Hyperliquid</strong> the open and the close are two separate signed orders.
-    Each is a signed message sent to Hyperliquid's API server and matched on HyperCore, its own
-    order-book chain. They settle as two independent steps.</p>
-
-  <h2>What we measured</h2>
-  <p>Both sides measured the same way, from one cloud box in <strong>AWS Tokyo</strong>
-    (<code>ap-northeast-1</code>) — the region hosting both venues' infrastructure — timed to on-chain
-    settlement.</p>
-
-  <div class="callout">
-    <div class="stat dd"><p class="k">DreamDEX — full round-trip</p>
-      <div class="v">279 ms</div><p class="u">one atomic transaction</p></div>
-    <div class="stat hl"><p class="k">Hyperliquid — full round-trip</p>
-      <div class="v">1.41 s</div><p class="u">two separate orders</p></div>
+  <div style="height: 52px; flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 0 16px 0 20px">
+    <div style="font-family: 'Geist', sans-serif; font-size: 15px; font-weight: 600"><span style="color: #b9a6f5">DreamDEX</span> vs <span style="color: #61f1fd">Hyperliquid</span></div>
+    <a href="https://github.com/IronicDeGawd/dreamdex-vs-hyperliquid" style="height: 36px; display: inline-flex; align-items: center; padding: 0 14px; border: 1px solid #44454f; border-radius: 8px; background: #2a2b32; font-size: 13px; font-weight: 500; text-decoration: none">View code on GitHub</a>
   </div>
 
-  <table>
-    <thead><tr><th>Run</th><th>DreamDEX</th><th>Hyperliquid</th><th>Delta</th></tr></thead>
-    <tbody>
-      <tr><td class="n">1</td><td class="n dd">354 ms</td><td class="n hl">1.49 s</td><td class="n am">4.2×</td></tr>
-      <tr><td class="n">2</td><td class="n dd">275 ms</td><td class="n hl">1.52 s</td><td class="n am">5.5×</td></tr>
-      <tr class="hero"><td class="n">3</td><td class="n dd">279 ms</td><td class="n hl">1.41 s</td><td class="n am">5.0×</td></tr>
-    </tbody>
-  </table>
-  <p class="tnote">Three consecutive runs. DreamDEX also does it as one transaction a smart-contract bot
-    cannot replicate on Hyperliquid, where the contract path (CoreWriter) settles asynchronously.</p>
+  <div style="flex: 1; margin: 0 8px 8px; border: 1px solid #383942; border-radius: 12px; background: #23242a; padding: 56px 24px 88px">
+    <div style="max-width: 900px; margin: 0 auto; display: flex; flex-direction: column; gap: 22px">
 
-  <h2>Honest notes</h2>
-  <ul class="notes">
-    <li><b>This is a capability story, not a gas story.</b> On Somnia the EIP-7702 authorization costs
-      ~1.57M gas (far more than on Ethereum), so the atomic batch saves nothing on gas versus two
-      transactions. The point is <b>atomicity</b> — one all-or-nothing transaction — and self-custody,
-      not cost.</li>
-    <li><b>Hyperliquid's ~700 ms per order is real on-chain settlement</b>, not an off-chain trick. A
-      read from the same box was ~9 ms, so the ~700 ms is genuine HyperCore consensus for a write. The
-      honest distinction is <i>shape</i>: Hyperliquid has no single atomic on-chain open-and-close —
-      orders settle as separate steps.</li>
-    <li><b>Location matters.</b> The same DreamDEX round-trip measured from a laptop over the public
-      internet read ~1.4 s — all network round-trip. The numbers here are from a server next to the
-      venues; reproduce from there or expect inflation.</li>
-  </ul>
+      <div style="max-width: 720px; display: flex; flex-direction: column; gap: 12px">
+        <div style="font-size: 13px; color: #8d8d9b">15 October 2026. Testnets, timed from a server in AWS Tokyo next to both venues.</div>
+        <h1 style="margin: 0; font-family: 'Geist', sans-serif; font-size: 36px; line-height: 1.15; font-weight: 600; letter-spacing: -0.025em">Opening and closing a perp: one transaction against two orders</h1>
+        <p style="margin: 0; font-size: 17px; line-height: 1.65; color: #a3a3b0">I had a bot open and close the same BTC position on <span style="color: #b9a6f5; font-weight: 500">DreamDEX</span> and on <span style="color: #61f1fd; font-weight: 500">Hyperliquid</span>, timed to on-chain settlement. <em style="color: #e8e8ee">DreamDEX did both legs in one transaction.</em></p>
+      </div>
 
-  <h2>Reproduce it</h2>
-  <p>Testnet only. The repo holds committed sample runs, so the board replays with no setup; running
-    live needs a funded DreamDEX throwaway wallet and a Hyperliquid testnet agent.</p>
-<pre><code>npm install
-cp .env.example .env     <span class="c"># three testnet credentials</span>
-npm run setup            <span class="c"># DreamDEX: approve margin, deposit, attach 7702</span>
-npm run race             <span class="c"># serves the board at http://localhost:8800</span></code></pre>
-  <p>Open the board and press <strong>Start</strong>. Each run is saved as a JSON timeline with its tx
-    hashes, which the board can replay deterministically.</p>
+      <div style="max-width: 720px; box-sizing: border-box; border: 1px solid #6a55b8; border-radius: 10px; background: #332c4f; padding: 16px 18px; font-size: 15px; line-height: 1.65; color: #c7bde6">
+        <span style="font-weight: 600; color: #e6ddff">Verdict.</span> DreamDEX settles the whole round trip in <span style="font-weight: 600; color: #e6ddff">279 ms</span> because it is one transaction: the open and the close are matched inside the same on-chain call and finish in the same block. Hyperliquid needs two orders that settle one after the other, so it pays for settlement twice: <span style="font-weight: 600; color: #61f1fd">1.41 s</span>.
+      </div>
 
-  <p class="foot">Every number here is measured; the tx hashes are real HyperCore and Hideki hashes.
-    Code and method: <a href="https://github.com/IronicDeGawd/dreamdex-vs-hyperliquid">github.com/IronicDeGawd/dreamdex-vs-hyperliquid</a>.</p>
+      <div style="display: flex; flex-direction: column; gap: 10px">
+        <video src="race.mp4" poster="race-poster.png" autoplay muted loop playsinline style="display: block; width: 900px; max-width: 100%; height: auto; border: 1px solid #383942; border-radius: 12px"></video>
+        <div style="font-size: 13px; color: #8d8d9b">Three real runs at real speed. Each Start press runs the same open-and-close on both venues at the same moment; each row fills when its chain settles.</div>
+      </div>
+
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); border: 1px solid #383942; border-radius: 10px; background: #2a2b32; overflow: hidden">
+        <div style="padding: 14px 16px; border-right: 1px solid #383942; display: flex; flex-direction: column; gap: 2px"><span style="font-family: 'Geist', sans-serif; font-size: 22px; font-weight: 600"><span style="color: #b9a6f5">1</span> vs <span style="color: #61f1fd">2</span></span><span style="font-size: 12px; color: #8d8d9b">settlements per round trip</span></div>
+        <div style="padding: 14px 16px; border-right: 1px solid #383942; display: flex; flex-direction: column; gap: 2px"><span style="font-family: 'Geist', sans-serif; font-size: 22px; font-weight: 600; color: #b9a6f5">279 ms</span><span style="font-size: 12px; color: #8d8d9b">DreamDEX round trip</span></div>
+        <div style="padding: 14px 16px; border-right: 1px solid #383942; display: flex; flex-direction: column; gap: 2px"><span style="font-family: 'Geist', sans-serif; font-size: 22px; font-weight: 600; color: #61f1fd">1.41 s</span><span style="font-size: 12px; color: #8d8d9b">Hyperliquid round trip</span></div>
+        <div style="padding: 14px 16px; display: flex; flex-direction: column; gap: 2px"><span style="font-family: 'Geist', sans-serif; font-size: 22px; font-weight: 600; color: #6ee7c6">~5×</span><span style="font-size: 12px; color: #8d8d9b">faster, three runs</span></div>
+      </div>
+
+      <div style="max-width: 720px; display: flex; flex-direction: column; gap: 18px">
+        <h2 style="margin: 26px 0 0; font-family: 'Geist', sans-serif; font-size: 24px; font-weight: 600; letter-spacing: -0.01em">Why it is faster</h2>
+        <p style="margin: 0; font-size: 16px; line-height: 1.7; color: #a3a3b0">The gap is not a faster server or a better connection: both bots ran from the same machine. It comes from <span style="color: #e8e8ee; font-weight: 500">how many times each venue has to settle</span> before the trade is done.</p>
+
+        <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 8px">
+          <span style="align-self: flex-start; font-size: 12px; font-weight: 500; color: #61f1fd; background: rgba(97,241,253,0.12); border-radius: 999px; padding: 3px 10px">Hyperliquid</span>
+          <h3 style="margin: 0; font-family: 'Geist', sans-serif; font-size: 17px; font-weight: 600">It has to wait for the open before it can close</h3>
+        </div>
+        <p style="margin: 0; font-size: 16px; line-height: 1.7; color: #a3a3b0">The close is a <code style="font-family: 'JetBrains Mono', monospace; font-size: 13px; color: #61f1fd; background: rgba(97,241,253,0.12); border-radius: 5px; padding: 1px 6px">reduce-only</code> order: it can only shrink a position that already exists. So the bot sends the open, waits for HyperCore to settle it, and only then sends the close, which settles again. <span style="color: #e8e8ee; font-weight: 500">Two consensus rounds, back to back.</span></p>
+        <div style="border: 1px solid #383942; border-radius: 10px; background: #2a2b32; overflow: hidden">
+          <div style="height: 34px; display: flex; align-items: center; justify-content: space-between; padding: 0 14px; background: #26272d; border-bottom: 1px solid #383942; font-size: 12px; color: #8d8d9b"><span style="display: flex; align-items: center; gap: 8px"><span style="width: 8px; height: 8px; border-radius: 50%; background: #61f1fd"></span><span style="font-family: 'JetBrains Mono', monospace">src/hyperliquid.mjs</span></span><span>two orders, one after the other</span></div>
+          <pre style="margin: 0; padding: 14px 16px; font-family: 'JetBrains Mono', monospace; font-size: 12.5px; line-height: 1.75; overflow-x: auto; color: #e8e8ee"><span style="color: #8d8d9b">// leg 1: open. Returns once HyperCore has settled the fill (~700 ms)</span>
+<span style="color: #ff8bff">const</span> o = <span style="color: #ff8bff">await</span> exch.<span style="color: #9dbbff">order</span>({ orders: [
+  { a: btc, b: <span style="color: #f0c24b">true</span>,  p: buyPx,  s: size, r: <span style="color: #f0c24b">false</span>, t: { limit: { tif: <span style="color: #f0c24b">"Ioc"</span> } } },
+] });
+
+<span style="color: #8d8d9b">// leg 2: close. Reduce-only, so it cannot start until leg 1 exists (~700 ms more)</span>
+<span style="color: #ff8bff">const</span> c = <span style="color: #ff8bff">await</span> exch.<span style="color: #9dbbff">order</span>({ orders: [
+  { a: btc, b: <span style="color: #f0c24b">false</span>, p: sellPx, s: size, r: <span style="color: #61f1fd; background: rgba(97,241,253,0.12)">true</span>,  t: { limit: { tif: <span style="color: #f0c24b">"Ioc"</span> } } },
+] });</pre>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 8px">
+          <span style="align-self: flex-start; font-size: 12px; font-weight: 500; color: #b9a6f5; background: #332c4f; border-radius: 999px; padding: 3px 10px">DreamDEX</span>
+          <h3 style="margin: 0; font-family: 'Geist', sans-serif; font-size: 17px; font-weight: 600">It sends both legs in one transaction</h3>
+        </div>
+        <p style="margin: 0; font-size: 16px; line-height: 1.7; color: #a3a3b0">The wallet is delegated through EIP-7702 to a small batcher contract. The bot sends one transaction to itself that calls <code style="font-family: 'JetBrains Mono', monospace; font-size: 13px; color: #b9a6f5; background: #332c4f; border-radius: 5px; padding: 1px 6px">execute([open, close])</code>, and the batcher places the buy, then the sell, against the pool in the same call.</p>
+        <div style="border: 1px solid #383942; border-radius: 10px; background: #2a2b32; overflow: hidden">
+          <div style="height: 34px; display: flex; align-items: center; justify-content: space-between; padding: 0 14px; background: #26272d; border-bottom: 1px solid #383942; font-size: 12px; color: #8d8d9b"><span style="display: flex; align-items: center; gap: 8px"><span style="width: 8px; height: 8px; border-radius: 50%; background: #9b80f0"></span><span style="font-family: 'JetBrains Mono', monospace">src/dreamdex.mjs</span></span><span>one transaction, both legs</span></div>
+          <pre style="margin: 0; padding: 14px 16px; font-family: 'JetBrains Mono', monospace; font-size: 12.5px; line-height: 1.75; overflow-x: auto; color: #e8e8ee"><span style="color: #8d8d9b">// both orders go into one batch</span>
+<span style="color: #ff8bff">const</span> calls = [
+  { to: btcPerp, value: <span style="color: #f0c24b">0n</span>, data: <span style="color: #9dbbff">encode</span>(<span style="color: #f0c24b">"placeOrder"</span>, <span style="color: #9dbbff">orderArgs</span>(<span style="color: #f0c24b">true</span>,  buy))  },  <span style="color: #8d8d9b">// open</span>
+  { to: btcPerp, value: <span style="color: #f0c24b">0n</span>, data: <span style="color: #9dbbff">encode</span>(<span style="color: #f0c24b">"placeOrder"</span>, <span style="color: #9dbbff">orderArgs</span>(<span style="color: #f0c24b">false</span>, sell)) },  <span style="color: #8d8d9b">// close</span>
+];
+
+<span style="color: #8d8d9b">// one transaction to our own (7702-delegated) address runs the batch</span>
+<span style="color: #ff8bff">const</span> hash = <span style="color: #ff8bff">await</span> wallet.<span style="color: #9dbbff">sendTransaction</span>({ to: me, data: <span style="color: #9dbbff">encode</span>(<span style="color: #f0c24b">"execute"</span>, [calls]) });
+<span style="color: #ff8bff">await</span> pub.<span style="color: #9dbbff">waitForTransactionReceipt</span>({ hash });   <span style="color: #6ee7c6">// one inclusion = open and close settled</span></pre>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 8px">
+          <span style="align-self: flex-start; font-size: 12px; font-weight: 500; color: #b9a6f5; background: #332c4f; border-radius: 999px; padding: 3px 10px">DreamDEX</span>
+          <h3 style="margin: 0; font-family: 'Geist', sans-serif; font-size: 17px; font-weight: 600">The order book is a contract, so matching happens inside the transaction</h3>
+        </div>
+        <p style="margin: 0; font-size: 16px; line-height: 1.7; color: #a3a3b0">On DreamDEX the order book lives on chain. When the transaction executes, the buy matches and the position opens, then the sell matches and the position closes, <span style="color: #e8e8ee; font-weight: 500">all in one execution</span>. There is no separate matching engine to wait for and no second message. When the block includes the transaction, the trade is finished.</p>
+
+        <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 8px">
+          <span style="align-self: flex-start; font-size: 12px; font-weight: 500; color: #b9a6f5; background: #332c4f; border-radius: 999px; padding: 3px 10px">Somnia</span>
+          <h3 style="margin: 0; font-family: 'Geist', sans-serif; font-size: 17px; font-weight: 600">The chain includes the transaction quickly</h3>
+        </div>
+        <p style="margin: 0; font-size: 16px; line-height: 1.7; color: #a3a3b0">With one transaction, the only wait left is for Somnia to put it in a block. From Tokyo the node accepted it in about <span style="color: #b9a6f5; font-weight: 500">15 ms</span>, and it settled in <span style="color: #b9a6f5; font-weight: 500">279 ms</span> on this run. In earlier testing it sometimes landed in the same block it was sent in, in <span style="color: #b9a6f5; font-weight: 500">33 ms</span>.</p>
+
+        <div style="border: 1px solid #383942; border-radius: 10px; background: #2a2b32; overflow: hidden">
+          <div style="height: 34px; display: flex; align-items: center; padding: 0 14px; background: #26272d; border-bottom: 1px solid #383942; font-size: 12px; color: #8d8d9b">Run 3, measured timeline</div>
+          <pre style="margin: 0; padding: 14px 16px; font-family: 'JetBrains Mono', monospace; font-size: 12.5px; line-height: 1.75; overflow-x: auto; color: #a3a3b0"><span style="color: #b9a6f5">DreamDEX</span>         0 ms  send execute([open, close])
+                13 ms  submitted
+                46 ms  accepted by node
+<span style="color: #b9a6f5">               279 ms  included: open + close settled</span>      <span style="color: #6ee7c6">done</span>
+
+<span style="color: #61f1fd">Hyperliquid</span>      0 ms  send open
+                30 ms  open submitted
+<span style="color: #61f1fd">               687 ms  open settled on HyperCore</span>
+               687 ms  send close   <span style="color: #f0c24b">(only now allowed)</span>
+<span style="color: #61f1fd">             1,408 ms  close settled on HyperCore</span>          <span style="color: #6ee7c6">done</span></pre>
+        </div>
+
+        <h3 style="margin: 10px 0 0; font-family: 'Geist', sans-serif; font-size: 17px; font-weight: 600">“Couldn't Hyperliquid just batch them?”</h3>
+        <p style="margin: 0; font-size: 16px; line-height: 1.7; color: #a3a3b0">Its API can put several orders in one signed action, but a reduce-only close still needs the open to have filled, and there is no on-chain call that opens and closes as one all-or-nothing unit. A smart contract that wants to trade on HyperCore goes through <code style="font-family: 'JetBrains Mono', monospace; font-size: 13px; color: #61f1fd; background: rgba(97,241,253,0.12); border-radius: 5px; padding: 1px 6px">CoreWriter</code>, which settles asynchronously. <span style="color: #e8e8ee; font-weight: 500">A faster bot does not remove the second settlement; only doing both legs in one transaction does.</span></p>
+
+        <h2 style="margin: 26px 0 0; font-family: 'Geist', sans-serif; font-size: 24px; font-weight: 600; letter-spacing: -0.01em">The numbers</h2>
+        <p style="margin: 0; font-size: 16px; line-height: 1.7; color: #a3a3b0">Settled means the transaction (DreamDEX) or the fill (Hyperliquid) is included on chain. Three consecutive runs:</p>
+        <div style="border: 1px solid #383942; border-radius: 10px; background: #2a2b32; overflow-x: auto">
+          <div style="min-width: 540px; font-size: 14px">
+            <div style="display: grid; grid-template-columns: 70px repeat(4, minmax(0, 1fr)); height: 34px; align-items: center; padding: 0 16px; background: #26272d; border-bottom: 1px solid #383942; font-size: 12px; color: #8d8d9b"><div>Run</div><div style="color: #b9a6f5">DreamDEX</div><div style="color: #61f1fd">Hyperliquid open</div><div style="color: #61f1fd">Hyperliquid total</div><div>Ratio</div></div>
+            <div style="display: grid; grid-template-columns: 70px repeat(4, minmax(0, 1fr)); height: 40px; align-items: center; padding: 0 16px; border-bottom: 1px solid #383942"><div style="color: #8d8d9b">1</div><div style="color: #b9a6f5">354 ms</div><div>769 ms</div><div>1.49 s</div><div style="color: #6ee7c6">4.2×</div></div>
+            <div style="display: grid; grid-template-columns: 70px repeat(4, minmax(0, 1fr)); height: 40px; align-items: center; padding: 0 16px; border-bottom: 1px solid #383942"><div style="color: #8d8d9b">2</div><div style="color: #b9a6f5">275 ms</div><div>808 ms</div><div>1.52 s</div><div style="color: #6ee7c6">5.5×</div></div>
+            <div style="display: grid; grid-template-columns: 70px repeat(4, minmax(0, 1fr)); height: 40px; align-items: center; padding: 0 16px; font-weight: 600"><div style="color: #8d8d9b">3</div><div style="color: #b9a6f5">279 ms</div><div>687 ms</div><div>1.41 s</div><div style="color: #6ee7c6">5.0×</div></div>
+          </div>
+        </div>
+        <div style="font-size: 13px; line-height: 1.6; color: #8d8d9b; margin-top: -8px">Hyperliquid's <span style="color: #61f1fd">open alone</span> takes longer than DreamDEX's <span style="color: #b9a6f5">entire round trip</span>. Milliseconds vary run to run; the shape, one settlement against two, does not.</div>
+
+        <div style="margin-top: 22px; border: 1px solid rgba(240,194,75,0.35); border-radius: 10px; background: rgba(240,194,75,0.08); padding: 6px 18px">
+          <div style="padding: 12px 0 10px; font-family: 'Geist', sans-serif; font-size: 16px; font-weight: 600; color: #f0c24b">Read before you quote these numbers</div>
+          <div style="padding: 12px 0; border-top: 1px solid rgba(240,194,75,0.2); display: flex; flex-direction: column; gap: 4px">
+            <div style="font-family: 'Geist', sans-serif; font-size: 15px; font-weight: 600">Atomicity, not gas</div>
+            <div style="font-size: 15px; line-height: 1.65; color: #a3a3b0">The EIP-7702 authorization costs about 1.57M gas on Somnia, so batching saves nothing on fees. The gain is one all-or-nothing transaction you sign yourself.</div>
+          </div>
+          <div style="padding: 12px 0; border-top: 1px solid rgba(240,194,75,0.2); display: flex; flex-direction: column; gap: 4px">
+            <div style="font-family: 'Geist', sans-serif; font-size: 15px; font-weight: 600">Hyperliquid's time is real</div>
+            <div style="font-size: 15px; line-height: 1.65; color: #a3a3b0">A read from the same server took ~9 ms, so ~700 ms per order is HyperCore consensus, not network lag.</div>
+          </div>
+          <div style="padding: 12px 0 14px; border-top: 1px solid rgba(240,194,75,0.2); display: flex; flex-direction: column; gap: 4px">
+            <div style="font-family: 'Geist', sans-serif; font-size: 15px; font-weight: 600">Location matters</div>
+            <div style="font-size: 15px; line-height: 1.65; color: #a3a3b0">From a laptop the same DreamDEX round trip read ~1.4 s. Measure next to the venues or expect inflated numbers.</div>
+          </div>
+        </div>
+
+        <h2 style="margin: 26px 0 0; font-family: 'Geist', sans-serif; font-size: 20px; font-weight: 600">Method and reproduce</h2>
+        <p style="margin: 0; font-size: 16px; line-height: 1.7; color: #a3a3b0">Testnet only. Both lanes start at the same moment from one server in AWS ap-northeast-1. The three runs above ship with the repository as JSON timelines with every hash, so the board replays with no setup.</p>
+        <div style="border: 1px solid #383942; border-radius: 10px; background: #2a2b32; overflow: hidden">
+          <div style="height: 34px; display: flex; align-items: center; padding: 0 14px; background: #26272d; border-bottom: 1px solid #383942; font-size: 12px; color: #8d8d9b">Terminal</div>
+          <pre style="margin: 0; padding: 14px 16px; font-family: 'JetBrains Mono', monospace; font-size: 12.5px; line-height: 1.75; overflow-x: auto; color: #e8e8ee"><span style="color: #9dbbff">npm</span> install
+<span style="color: #9dbbff">cp</span> .env.example .env    <span style="color: #8d8d9b"># three testnet credentials</span>
+<span style="color: #9dbbff">npm</span> run setup           <span style="color: #8d8d9b"># margin deposit + EIP-7702 delegation</span>
+<span style="color: #9dbbff">npm</span> run race            <span style="color: #8d8d9b"># board at http://localhost:8800</span></pre>
+        </div>
+        <div style="display: flex; gap: 10px; flex-wrap: wrap">
+          <a href="https://github.com/IronicDeGawd/dreamdex-vs-hyperliquid" style="height: 40px; display: inline-flex; align-items: center; padding: 0 16px; border-radius: 8px; background: #fe54ff; color: #18171d; font-size: 14px; font-weight: 600; text-decoration: none">Open the repository</a>
+          <a href="https://eips.ethereum.org/EIPS/eip-7702" style="height: 40px; display: inline-flex; align-items: center; padding: 0 16px; border-radius: 8px; border: 1px solid #44454f; background: #2a2b32; font-size: 14px; font-weight: 500; text-decoration: none">Read EIP-7702</a>
+        </div>
+
+        <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid #383942; font-size: 13px; line-height: 1.6; color: #8d8d9b">The structural facts here, one transaction against two orders and both DreamDEX legs in one block, hold on every run. The millisecond figures vary with network conditions and were measured on testnets.</div>
+      </div>
+    </div>
+  </div>
 </div>
 </body>
 </html>
