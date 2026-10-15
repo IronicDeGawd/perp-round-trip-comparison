@@ -1,5 +1,5 @@
 {
-  "name": "dreamdex-vs-hyperliquid",
+  "name": "perp-round-trip-comparison",
   "version": "1.0.0",
   "description": "A bot opens and closes a BTC perp on DreamDEX (one atomic on-chain transaction) and on Hyperliquid (two orders), timed to on-chain settlement. Live board + deterministic replay.",
   "type": "module",

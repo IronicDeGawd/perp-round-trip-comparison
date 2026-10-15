@@ -1,4 +1,4 @@
-# DreamDEX vs Hyperliquid: one transaction against two orders
+# Perp round-trip comparison: DreamDEX vs Hyperliquid
 
 A live, reproducible demo of something DreamDEX on Somnia does that Hyperliquid
 cannot: **a bot opens and closes a perp position in one atomic on-chain
