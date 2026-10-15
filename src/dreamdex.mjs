@@ -75,13 +75,3 @@ export async function runDreamdex({ privateKey, t0 = Date.now(), emit = () => {}
     events,
   };
 }
-
-// Standalone: print one timeline.
-if (import.meta.url === `file://${process.argv[1]}`) {
-  const dotenv = await import("dotenv"); dotenv.config();
-  const pk = process.env.DREAMDEX_PRIVATE_KEY;
-  if (!pk) { console.error("set DREAMDEX_PRIVATE_KEY in .env"); process.exit(1); }
-  const ready = await ensureReady(pk); console.error("ready:", ready);
-  const out = await runDreamdex({ privateKey: pk, emit: (e) => console.error(`  ${e.tMs}ms ${e.step} ${e.label}`) });
-  console.log(JSON.stringify(out, null, 2));
-}

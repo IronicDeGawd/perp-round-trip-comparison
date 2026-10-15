@@ -74,11 +74,3 @@ export async function runHyperliquid({ privateKey, master, t0 = Date.now(), emit
     events,
   };
 }
-
-if (import.meta.url === `file://${process.argv[1]}`) {
-  const dotenv = await import("dotenv"); dotenv.config();
-  const pk = process.env.HL_AGENT_PRIVATE_KEY, master = process.env.HL_MASTER_ADDRESS;
-  if (!pk || !master) { console.error("set HL_AGENT_PRIVATE_KEY and HL_MASTER_ADDRESS in .env"); process.exit(1); }
-  const out = await runHyperliquid({ privateKey: pk, master, emit: (e) => console.error(`  ${e.tMs}ms ${e.step} ${e.label}`) });
-  console.log(JSON.stringify(out, null, 2));
-}

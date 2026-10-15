@@ -2,15 +2,13 @@
 // allowance, deposit perp margin, and attach the wallet's EIP-7702 delegation
 // to the already-deployed SessionDelegate batcher. Idempotent — safe to re-run.
 // Hyperliquid needs no setup here (the agent is approved on the master account).
-//   node src/setup.mjs [depositUSDso]
+//   node --env-file=.env.local scripts/setup.mjs [depositUSDso]
 import { createPublicClient, createWalletClient, http, parseUnits, formatUnits, getContract } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import dotenv from "dotenv";
-import { DREAMDEX, chain, erc20Abi, marginBankAbi } from "./config.mjs";
+import { DREAMDEX, chain, erc20Abi, marginBankAbi } from "../src/config.mjs";
 
-dotenv.config();
 const pk = process.env.DREAMDEX_PRIVATE_KEY;
-if (!pk) { console.error("set DREAMDEX_PRIVATE_KEY in .env"); process.exit(1); }
+if (!pk) { console.error("set DREAMDEX_PRIVATE_KEY in .env.local"); process.exit(1); }
 const depositAmt = process.argv[2] || "5";
 
 const account = privateKeyToAccount(pk.startsWith("0x") ? pk : "0x" + pk);
