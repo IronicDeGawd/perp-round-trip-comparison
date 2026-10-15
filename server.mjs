@@ -1,19 +1,18 @@
-// The race server. Serves the UI and runs both lanes in parallel on one
-// "Run both" press, streaming every event live over Server-Sent Events. Each
-// run is saved as a JSON timeline under runs/. No secrets reach the browser —
-// keys stay here, the UI only ever receives events.
+// The board server. Serves the page and runs both venues in parallel on one
+// Start press, streaming every event live over Server-Sent Events. Each run is
+// saved as a JSON timeline under runs/. No secrets reach the browser: keys stay
+// here, the page only ever receives events.
+//   node --env-file=.env.local server.mjs
 import { createServer } from "node:http";
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { dirname, join, extname } from "node:path";
-import dotenv from "dotenv";
-import { runDreamdex, ensureReady as ddReady } from "./dreamdex.mjs";
-import { runHyperliquid, ensureReady as hlReady } from "./hyperliquid.mjs";
+import { runDreamdex, ensureReady as ddReady } from "./src/dreamdex.mjs";
+import { runHyperliquid, ensureReady as hlReady } from "./src/hyperliquid.mjs";
 
-dotenv.config();
 const __dir = dirname(fileURLToPath(import.meta.url));
-const PUBLIC = join(__dir, "..", "public");
-const RUNS = join(__dir, "..", "runs");
+const PUBLIC = join(__dir, "public");
+const RUNS = join(__dir, "runs");
 const PORT = Number(process.env.PORT || 8800);
 
 const DD_KEY = process.env.DREAMDEX_PRIVATE_KEY;
@@ -94,7 +93,7 @@ createServer(async (req, res) => {
   if (pathname === "/api/ready") return handleReady(res);
   return serveStatic(req, res);
 }).listen(PORT, () => {
-  console.log(`race server on http://localhost:${PORT}`);
-  console.log(`  UI        http://localhost:${PORT}/`);
+  console.log(`board server on http://localhost:${PORT}`);
+  console.log(`  board     http://localhost:${PORT}/`);
   console.log(`  readiness http://localhost:${PORT}/api/ready`);
 });

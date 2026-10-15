@@ -16,5 +16,11 @@ dist/
 runs/*.json
 !runs/sample-*.json
 
-# os
+context
+
+# os / editor
 .DS_Store
+*.log
+
+# hosted narrative report — kept local, not in the repo
+site/

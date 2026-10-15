@@ -1,18 +1,17 @@
 {
   "name": "dreamdex-vs-hyperliquid",
   "version": "1.0.0",
-  "description": "A one-button race: a bot opens and closes a perp on DreamDEX (one atomic on-chain tx) vs Hyperliquid (two API orders), timed to on-chain settlement. Live run + deterministic replay.",
+  "description": "A bot opens and closes a BTC perp on DreamDEX (one atomic on-chain transaction) and on Hyperliquid (two orders), timed to on-chain settlement. Live board + deterministic replay.",
   "type": "module",
+  "engines": { "node": ">=20" },
   "scripts": {
-    "setup": "node src/setup.mjs",
-    "race": "node src/race-server.mjs",
-    "dreamdex": "node src/dreamdex.mjs",
-    "hyperliquid": "node src/hyperliquid.mjs"
+    "setup": "node --env-file=.env.local scripts/setup.mjs",
+    "board": "node --env-file=.env.local server.mjs",
+    "dreamdex": "node --env-file=.env.local scripts/dreamdex-measure.mjs",
+    "hyperliquid": "node --env-file=.env.local scripts/hyperliquid-measure.mjs"
   },
-  "license": "MIT",
   "dependencies": {
     "@nktkas/hyperliquid": "0.33.3",
-    "dotenv": "16.4.7",
     "viem": "2.57.6"
   }
 }
