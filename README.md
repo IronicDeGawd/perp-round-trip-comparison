@@ -23,13 +23,16 @@ fills when its chain settles. The two facts that never change:
 Measured from one server in AWS Tokyo (`ap-northeast-1`), next to both venues, three
 consecutive runs:
 
-| Run | DreamDEX (1 tx) | Hyperliquid open | Hyperliquid total (2 orders) | Ratio |
-|---|---|---|---|---|
-| 1 | 354 ms | 769 ms | 1.49 s | 4.2× |
-| 2 | 275 ms | 808 ms | 1.52 s | 5.5× |
-| 3 | **279 ms** | 687 ms | **1.41 s** | **5.0×** |
+| Run | DreamDEX open + close (1 tx) | Hyperliquid open | Hyperliquid close | Hyperliquid open + close (2 orders) | Ratio |
+|---|---|---|---|---|---|
+| 1 | 354 ms | 769 ms | 718 ms | 1.49 s | 4.2× |
+| 2 | 275 ms | 808 ms | 715 ms | 1.52 s | 5.5× |
+| 3 | **279 ms** | 687 ms | 721 ms | **1.41 s** | **5.0×** |
 
-Hyperliquid's open order alone takes longer than DreamDEX's whole round trip.
+DreamDEX settles both legs in one transaction, so it has a single time. Hyperliquid
+settles each leg separately: the close can only start once the open has settled, so
+its total is open + close. Each Hyperliquid leg alone takes longer than DreamDEX's
+whole round trip.
 Milliseconds vary run to run; the shape (one settlement against two) does not. The
 three timelines are committed in `runs/` with every hash.
 
